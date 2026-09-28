@@ -21,7 +21,7 @@
 #include "ftm-session.h"
 #include "ns3/ftm-header.h"
 #include "ns3/core-module.h"
-#include "ns3/mgt-headers.h"
+#include "ns3/mgt-action-headers.h"
 #include "ns3/wifi-mac-header.h"
 
 
@@ -75,11 +75,11 @@ FtmSession::FtmSession ()
 
 FtmSession::~FtmSession ()
 {
-  m_ftm_error_model = 0;
+  m_ftm_error_model = nullptr;
   m_rtt_list.clear();
   m_sig_str_list.clear();
   m_ftm_dialogs.clear();
-  m_current_dialog = 0;
+  m_current_dialog = nullptr;
 
 
   send_packet = MakeNullCallback <void, Ptr<Packet>, WifiMacHeader> ();
@@ -88,6 +88,27 @@ FtmSession::~FtmSession ()
   block_session = MakeNullCallback<void, Mac48Address, Time> ();
   live_rtt = MakeNullCallback<void, int64_t> ();
   session_override = MakeNullCallback<void, Mac48Address, FtmRequestHeader> ();
+}
+
+void
+FtmSession::DoDispose (void)
+{
+  m_session_active = false;
+  Simulator::Cancel (m_session_expire_event);
+  Simulator::Cancel (m_session_active_check_event);
+  Simulator::Cancel (m_next_burst_event);
+  Simulator::Cancel (m_next_packet_event);
+
+  m_session_over_callback_set = false;
+  m_live_rtt_enabled = false;
+  send_packet = MakeNullCallback <void, Ptr<Packet>, WifiMacHeader> ();
+  session_over_ftm_manager_callback = MakeNullCallback<void, Mac48Address> ();
+  session_over_callback = MakeNullCallback<void, FtmSession> ();
+  block_session = MakeNullCallback<void, Mac48Address, Time> ();
+  live_rtt = MakeNullCallback<void, int64_t> ();
+  session_override = MakeNullCallback<void, Mac48Address, FtmRequestHeader> ();
+
+  Object::DoDispose ();
 }
 
 void
@@ -220,7 +241,7 @@ FtmSession::ProcessFtmResponse (FtmResponseHeader ftm_res)
   if (ftm_res.GetDialogToken() != 0)
     {
       Ptr<FtmDialog> dialog = FindDialog (ftm_res.GetDialogToken());
-      if(dialog == 0)
+      if(dialog == nullptr)
         {
           dialog = CreateNewDialog(ftm_res.GetDialogToken());
           m_ftm_dialogs.insert({ftm_res.GetDialogToken(), dialog});
@@ -230,7 +251,7 @@ FtmSession::ProcessFtmResponse (FtmResponseHeader ftm_res)
   if (ftm_res.GetFollowUpDialogToken() != 0)
     {
       Ptr<FtmDialog> follow_up_dialog = FindDialog(ftm_res.GetFollowUpDialogToken());
-      if(follow_up_dialog != 0 && follow_up_dialog->t1 == 0 && follow_up_dialog->t4 == 0)
+      if(follow_up_dialog != nullptr && follow_up_dialog->t1 == 0 && follow_up_dialog->t4 == 0)
         {
           follow_up_dialog->t1 = ftm_res.GetTimeOfDeparture();
           follow_up_dialog->t4 = ftm_res.GetTimeOfArrival();
@@ -378,7 +399,7 @@ FtmSession::SessionBegin (void)
       packet->AddHeader(ftm_req_hdr);
 
       action.publicAction = WifiActionHeader::FTM_REQUEST;
-      hdr.SetAction(WifiActionHeader::PUBLIC_ACTION, action);
+      hdr.SetAction(WifiActionHeader::PUBLIC, action);
       packet->AddHeader(hdr);
 
       Time check_active = MilliSeconds(50);
@@ -434,7 +455,7 @@ FtmSession::SessionBegin (void)
       packet->AddHeader(ftm_res_hdr);
 
       action.publicAction = WifiActionHeader::FTM_RESPONSE;
-      hdr.SetAction(WifiActionHeader::PUBLIC_ACTION, action);
+      hdr.SetAction(WifiActionHeader::PUBLIC, action);
       packet->AddHeader(hdr);
 
       session_expire += m_number_of_bursts_remaining * m_next_burst_period;
@@ -493,7 +514,7 @@ FtmSession::SendNextFtmPacket (void)
       Ptr<FtmDialog> previous_dialog = FindDialog (m_previous_dialog_token);
       FtmResponseHeader ftm_res_hdr;
       ftm_res_hdr.SetDialogToken(m_current_dialog_token);
-      if(previous_dialog != 0)
+      if(previous_dialog != nullptr)
         {
           ftm_res_hdr.SetFollowUpDialogToken(m_previous_dialog_token);
           ftm_res_hdr.SetTimeOfDeparture(previous_dialog->t1);
@@ -514,7 +535,7 @@ FtmSession::SendNextFtmPacket (void)
       WifiActionHeader hdr;
       WifiActionHeader::ActionValue action;
       action.publicAction = WifiActionHeader::FTM_RESPONSE;
-      hdr.SetAction(WifiActionHeader::PUBLIC_ACTION, action);
+      hdr.SetAction(WifiActionHeader::PUBLIC, action);
       packet->AddHeader(hdr);
 
       WifiMacHeader mac_hdr;
@@ -563,7 +584,7 @@ FtmSession::SendNextFtmPacket (void)
       WifiActionHeader hdr;
       WifiActionHeader::ActionValue action;
       action.publicAction = WifiActionHeader::FTM_RESPONSE;
-      hdr.SetAction(WifiActionHeader::PUBLIC_ACTION, action);
+      hdr.SetAction(WifiActionHeader::PUBLIC, action);
       packet->AddHeader(hdr);
 
       WifiMacHeader mac_hdr;
@@ -617,7 +638,7 @@ void
 FtmSession::SetT1 (uint8_t dialog_token, uint64_t timestamp)
 {
   Ptr<FtmDialog> dialog = FindDialog (dialog_token);
-  if(dialog != 0)
+  if(dialog != nullptr)
     {
       dialog->t1 = timestamp;
     }
@@ -627,7 +648,7 @@ void
 FtmSession::SetT2 (uint8_t dialog_token, uint64_t timestamp)
 {
   Ptr<FtmDialog> dialog = FindDialog (dialog_token);
-  if(dialog == 0)
+  if(dialog == nullptr)
     {
       dialog = CreateNewDialog(dialog_token);
       m_ftm_dialogs.insert({dialog_token, dialog});
@@ -639,7 +660,7 @@ void
 FtmSession::SetT3 (uint8_t dialog_token, uint64_t timestamp)
 {
   Ptr<FtmDialog> dialog = FindDialog (dialog_token);
-  if(dialog != 0)
+  if(dialog != nullptr)
     {
       dialog->t3 = timestamp;
     }
@@ -649,7 +670,7 @@ void
 FtmSession::SetT4 (uint8_t dialog_token, uint64_t timestamp)
 {
   Ptr<FtmDialog> dialog = FindDialog (dialog_token);
-  if(dialog != 0)
+  if(dialog != nullptr)
     {
       dialog->t4 = timestamp;
     }
@@ -659,7 +680,7 @@ void
 FtmSession::SetSignalStrength(uint8_t dialog_token, double sig_str)
 {
   Ptr<FtmDialog> dialog = FindDialog (dialog_token);
-  if(dialog != 0)
+  if(dialog != nullptr)
     {
       dialog->signal_strength = sig_str;
     }
@@ -673,7 +694,7 @@ FtmSession::FindDialog (uint8_t dialog_token)
     {
       return search->second;
     }
-  return 0;
+  return nullptr;
 }
 
 void
@@ -804,7 +825,7 @@ FtmSession::CheckTimeStampEqualZero (Ptr<FtmDialog> dialog)
 bool
 FtmSession::CheckTimestampSet (void)
 {
-  if (m_current_dialog == 0)
+  if (m_current_dialog == nullptr)
     {
       return true;
     }
@@ -892,7 +913,7 @@ FtmSession::DenySession (void)
   WifiActionHeader action_hdr;
   WifiActionHeader::ActionValue action;
   action.publicAction = WifiActionHeader::FTM_RESPONSE;
-  action_hdr.SetAction(WifiActionHeader::PUBLIC_ACTION, action);
+  action_hdr.SetAction(WifiActionHeader::PUBLIC, action);
   packet->AddHeader(action_hdr);
 
   WifiMacHeader mac_hdr;
@@ -912,7 +933,7 @@ FtmSession::SendTrigger (void)
   WifiActionHeader action_hdr;
   WifiActionHeader::ActionValue action;
   action.publicAction = WifiActionHeader::FTM_REQUEST;
-  action_hdr.SetAction(WifiActionHeader::PUBLIC_ACTION, action);
+  action_hdr.SetAction(WifiActionHeader::PUBLIC, action);
   packet->AddHeader(action_hdr);
 
   WifiMacHeader mac_hdr;

@@ -9,6 +9,7 @@
 #ifndef WIFI_MAC_H
 #define WIFI_MAC_H
 
+#include "ftm-session.h"
 #include "mgt-headers.h"
 #include "qos-utils.h"
 #include "ssid.h"
@@ -45,6 +46,7 @@ class EhtConfiguration;
 class FrameExchangeManager;
 class ChannelAccessManager;
 class ExtendedCapabilities;
+class FtmManager;
 class OriginatorBlockAckAgreement;
 class RecipientBlockAckAgreement;
 class UniformRandomVariable;
@@ -669,6 +671,37 @@ class WifiMac : public Object
     bool GetRobustAVStreamingSupported() const;
 
     /**
+     * Enable or disable support for Fine Timing Measurement (FTM). Used by the FTM_Enabled
+     * attribute; calls EnableFtm() or DisableFtm().
+     *
+     * @param enabled true if FTM should be enabled, false otherwise
+     */
+    void SetFtmEnabled(bool enabled);
+    /**
+     * Return whether FTM is enabled.
+     *
+     * @return true if FTM is enabled, false otherwise
+     */
+    bool GetFtmEnabled() const;
+    /**
+     * Enable FTM support on this WifiMac. FTM uses the PHY of the first link. If the MAC has not
+     * been fully configured yet (e.g., FTM is enabled through the attribute system), FTM becomes
+     * operational as soon as the configuration is completed.
+     */
+    void EnableFtm();
+    /**
+     * Disable FTM support on this WifiMac. All ongoing FTM sessions are terminated.
+     */
+    void DisableFtm();
+    /**
+     * Create a new FTM session as initiator, with the given partner as responder.
+     *
+     * @param partner the MAC address of the station that acts as responder
+     * @return the new FtmSession, or a null pointer if the session could not be created
+     */
+    Ptr<FtmSession> NewFtmSession(Mac48Address partner);
+
+    /**
      * Return the maximum A-MPDU size of the given Access Category.
      *
      * @param ac Access Category index
@@ -1231,6 +1264,22 @@ class WifiMac : public Object
     void NotifyRsmOfExpiredMpdu(Ptr<const WifiMpdu> mpdu);
 
     /**
+     * If FTM is enabled, create the FTM manager on the PHY of the first link, provided that the
+     * PHY and the Frame Exchange Manager of that link have been set and the FTM manager (if any)
+     * is not already using that PHY.
+     */
+    void ConfigureFtmManager();
+
+    /**
+     * Enqueue an FTM frame. Like other Management frames, the frame is queued in the Txop if QoS
+     * is not supported and in the AC_BE or AC_VO queue otherwise (Sec. 10.2.3.2 of 802.11-2020).
+     *
+     * @param packet the frame body (Action field and FTM frame)
+     * @param hdr the MAC header
+     */
+    void EnqueueFtmFrame(Ptr<Packet> packet, WifiMacHeader hdr);
+
+    /**
      * This Boolean is set \c true iff this WifiMac is to model
      * 802.11e/WMM style Quality of Service. It is exposed through the
      * attribute system.
@@ -1280,6 +1329,9 @@ class WifiMac : public Object
     uint32_t m_frameRetryLimit; //!< the frame retry limit
 
     bool m_robustAVStreamingSupported; ///< flag whether robust AV streaming is supported
+
+    bool m_ftmEnabled{false};     ///< flag whether FTM is enabled
+    Ptr<FtmManager> m_ftmManager; ///< the FTM manager (set once FTM is operational)
 
     /// @brief DL TID-to-Link Mapping negotiated with an MLD (identified by its MLD address)
     std::unordered_map<Mac48Address, WifiTidLinkMapping, WifiAddressHash> m_dlTidLinkMappings;

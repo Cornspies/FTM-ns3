@@ -19,6 +19,7 @@
  */
 
 #include "ftm-manager.h"
+#include "ns3/ampdu-subframe-header.h"
 #include "ns3/core-module.h"
 
 
@@ -47,7 +48,7 @@ FtmManager::FtmManager ()
   sending_ack = false;
 }
 
-FtmManager::FtmManager (Ptr<WifiPhy> phy, Ptr<Txop> txop)
+FtmManager::FtmManager (Ptr<WifiPhy> phy, Callback<void, Ptr<Packet>, WifiMacHeader> send_packet)
 {
   received_packets = 0;
   awaiting_ack = false;
@@ -56,18 +57,42 @@ FtmManager::FtmManager (Ptr<WifiPhy> phy, Ptr<Txop> txop)
   phy->TraceConnectWithoutContext("PhyTxBegin", MakeCallback(&FtmManager::PhyTxBegin, this));
   phy->TraceConnectWithoutContext("PhyRxBegin", MakeCallback(&FtmManager::PhyRxBegin, this));
   phy->TraceConnectWithoutContext("MonitorSnifferRx", MakeCallback(&FtmManager::SnifferRxNotify, this));
-  m_txop = txop;
+  m_phy = phy;
+  m_send_packet = send_packet;
 
   m_preamble_detection_duration = phy->GetPreambleDetectionDuration();
 }
 
 FtmManager::~FtmManager ()
 {
-  TraceDisconnectWithoutContext("PhyTxBegin", MakeCallback(&FtmManager::PhyTxBegin, this));
-  TraceDisconnectWithoutContext("PhyRxBegin", MakeCallback(&FtmManager::PhyRxBegin, this));
   sessions.clear();
   m_blocked_partners.clear();
-  m_txop = 0;
+}
+
+void
+FtmManager::DoDispose (void)
+{
+  if (m_phy != nullptr)
+    {
+      m_phy->TraceDisconnectWithoutContext("PhyTxBegin", MakeCallback(&FtmManager::PhyTxBegin, this));
+      m_phy->TraceDisconnectWithoutContext("PhyRxBegin", MakeCallback(&FtmManager::PhyRxBegin, this));
+      m_phy->TraceDisconnectWithoutContext("MonitorSnifferRx", MakeCallback(&FtmManager::SnifferRxNotify, this));
+      m_phy = nullptr;
+    }
+  for (auto &session : sessions)
+    {
+      session.second->Dispose ();
+    }
+  sessions.clear();
+  m_blocked_partners.clear();
+  m_send_packet = MakeNullCallback<void, Ptr<Packet>, WifiMacHeader> ();
+  Object::DoDispose ();
+}
+
+Ptr<WifiPhy>
+FtmManager::GetWifiPhy (void) const
+{
+  return m_phy;
 }
 
 void
@@ -84,12 +109,12 @@ FtmManager::PhyTxBegin(Ptr<const Packet> packet, double num)
   if(hdr.IsMgt() && hdr.IsAction()) {
       WifiActionHeader action_hdr;
       copy->RemoveHeader(action_hdr);
-      if(action_hdr.GetCategory() == WifiActionHeader::PUBLIC_ACTION) {
+      if(action_hdr.GetCategory() == WifiActionHeader::PUBLIC) {
           WifiActionHeader::ActionValue action = action_hdr.GetAction();
           if (action.publicAction == WifiActionHeader::FTM_RESPONSE)
             {
               Ptr<FtmSession> session = FindSession (hdr.GetAddr1());
-              if (session != 0)
+              if (session != nullptr)
                 {
                   FtmResponseHeader ftm_resp_hdr;
                   copy->RemoveHeader(ftm_resp_hdr);
@@ -112,7 +137,7 @@ FtmManager::PhyTxBegin(Ptr<const Packet> packet, double num)
           if(m_ack_to == hdr.GetAddr1()) {
               sending_ack = false;
               Ptr<FtmSession> session = FindSession (m_current_rx_packet.mac_hdr.GetAddr2());
-              if (session != 0)
+              if (session != nullptr)
                 {
                   session->SetT3(m_current_rx_packet.ftm_res_hdr.GetDialogToken(), pico_sec);
                 }
@@ -136,7 +161,7 @@ FtmManager::PhyRxBegin(Ptr<const Packet> packet, RxPowerWattPerChannelBand rxPow
       if(hdr.IsMgt() && hdr.IsAction()) {
           WifiActionHeader action_hdr;
           copy->RemoveHeader(action_hdr);
-          if(action_hdr.GetCategory() == WifiActionHeader::PUBLIC_ACTION) {
+          if(action_hdr.GetCategory() == WifiActionHeader::PUBLIC) {
               Mac48Address partner = hdr.GetAddr2();
               if(action_hdr.GetAction().publicAction == WifiActionHeader::FTM_RESPONSE) {
                   sending_ack = true;
@@ -147,7 +172,7 @@ FtmManager::PhyRxBegin(Ptr<const Packet> packet, RxPowerWattPerChannelBand rxPow
                   copy->RemoveHeader(ftm_res_hdr);
 
                   Ptr<FtmSession> session = FindSession(partner);
-                  if (session != 0 && ftm_res_hdr.GetDialogToken() != 0)
+                  if (session != nullptr && ftm_res_hdr.GetDialogToken() != 0)
                     {
                       session->SetT2(ftm_res_hdr.GetDialogToken(), pico_sec);
                       PacketInPieces pieces;
@@ -163,7 +188,7 @@ FtmManager::PhyRxBegin(Ptr<const Packet> packet, RxPowerWattPerChannelBand rxPow
           if(awaiting_ack && received_packets == 1) {
               awaiting_ack = false;
               Ptr<FtmSession> session = FindSession (m_current_tx_packet.mac_hdr.GetAddr1());
-              if (session != 0)
+              if (session != nullptr)
                 {
                   session->SetT4(m_current_tx_packet.ftm_res_hdr.GetDialogToken(), pico_sec);
                 }
@@ -181,6 +206,13 @@ FtmManager::SnifferRxNotify(Ptr<const Packet> packet, uint16_t channelFreqMhz, W
   NS_LOG_FUNCTION (this);
   Ptr<Packet> copy = packet->Copy();
 
+  if (aMpdu.type != NORMAL_MPDU)
+    {
+      // MPDUs of an A-MPDU (e.g. all VHT/HE frames) are traced with their subframe header
+      AmpduSubframeHeader subframe_hdr;
+      copy->RemoveHeader(subframe_hdr);
+    }
+
   WifiMacHeader hdr;
   copy->RemoveHeader(hdr);
   if(hdr.GetAddr1() == m_mac_address)
@@ -189,7 +221,7 @@ FtmManager::SnifferRxNotify(Ptr<const Packet> packet, uint16_t channelFreqMhz, W
       {
       WifiActionHeader action_hdr;
       copy->RemoveHeader(action_hdr);
-      if(action_hdr.GetCategory() == WifiActionHeader::PUBLIC_ACTION)
+      if(action_hdr.GetCategory() == WifiActionHeader::PUBLIC)
         {
         Mac48Address partner = hdr.GetAddr2();
         if(action_hdr.GetAction().publicAction == WifiActionHeader::FTM_RESPONSE)
@@ -197,7 +229,7 @@ FtmManager::SnifferRxNotify(Ptr<const Packet> packet, uint16_t channelFreqMhz, W
           FtmResponseHeader ftm_res_hdr;
           copy->RemoveHeader(ftm_res_hdr);
           Ptr<FtmSession> session = FindSession(partner);
-          if (session != 0 && ftm_res_hdr.GetDialogToken() != 0)
+          if (session != nullptr && ftm_res_hdr.GetDialogToken() != 0)
             {
               // set the signal strength for the current dialog
               session->SetSignalStrength(ftm_res_hdr.GetDialogToken(), signalNoise.signal);
@@ -217,7 +249,7 @@ FtmManager::SetMacAddress(Mac48Address addr)
 Ptr<FtmSession>
 FtmManager::CreateNewSession (Mac48Address partner, FtmSession::SessionType type)
 {
-  if(FindSession(partner) == 0 && !CheckSessionBlocked (partner) && partner != m_mac_address)
+  if(FindSession(partner) == nullptr && !CheckSessionBlocked (partner) && partner != m_mac_address)
     {
       Ptr<FtmSession> new_session = CreateObject<FtmSession> ();
       new_session->InitSession(partner, type, MakeCallback(&FtmManager::SendPacket, this));
@@ -228,7 +260,7 @@ FtmManager::CreateNewSession (Mac48Address partner, FtmSession::SessionType type
       sessions.insert({partner, new_session});
       return new_session;
     }
-  return 0;
+  return nullptr;
 }
 
 void
@@ -240,7 +272,7 @@ FtmManager::SendPacket (Ptr<Packet> packet, WifiMacHeader hdr)
   hdr.SetDsNotTo();
   hdr.SetDsNotFrom();
 //  hdr.SetNoRetry();
-  m_txop->Queue(packet, hdr);
+  m_send_packet(packet, hdr);
 }
 
 Ptr<FtmSession>
@@ -251,7 +283,7 @@ FtmManager::FindSession (Mac48Address addr)
     {
       return search->second;
     }
-  return 0;
+  return nullptr;
 }
 
 void
@@ -265,7 +297,7 @@ void
 FtmManager::ReceivedFtmRequest (Mac48Address partner, FtmRequestHeader ftm_req)
 {
   Ptr<FtmSession> session = FindSession (partner);
-  if (session == 0)
+  if (session == nullptr)
     {
       session = CreateNewSession(partner, FtmSession::FTM_RESPONDER);
     }
@@ -276,7 +308,7 @@ void
 FtmManager::ReceivedFtmResponse (Mac48Address partner, FtmResponseHeader ftm_res)
 {
   Ptr<FtmSession> session = FindSession (partner);
-  if (session != 0)
+  if (session != nullptr)
     {
       session->ProcessFtmResponse(ftm_res);
     }
