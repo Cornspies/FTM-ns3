@@ -10,7 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
-results_path = "sig_str_localization/"
+results_path = "ftm_localization/"
 error_models = ["wired/", "wireless/", "sig_str/", "sig_str_fading/"]
 
 def performTests():
@@ -23,13 +23,13 @@ def performTests():
             else:
                 output += str(seed)
 
-            waf_command = ["--run=ftm-sig-str-localization",
+            ns3_command = ["ftm-localization",
                            "--seed=" + str(seed),
                            "--error=" + str(error_model_index),
                            "--filename=" + output
                            ]
-            waf_string = ' '.join(waf_command)
-            subprocess.run(["./waf", waf_string])
+            ns3_string = ' '.join(ns3_command)
+            subprocess.run(["./ns3", "run", ns3_string])
         error_model_index += 1
 
 def main():

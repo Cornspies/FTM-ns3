@@ -146,12 +146,14 @@ def generateMap(args):
 #	else:
 #		z = np.random.rand(xx.shape[0], xx.shape[1]) * bias - bias/2
 
-	f = interpolate.interp2d(x, y, z, kind='cubic')
+	# bicubic spline through the grid points; equivalent to the removed
+	# interpolate.interp2d(x, y, z, kind='cubic') for data on a rectangular grid
+	f = interpolate.RectBivariateSpline(x, y, z.T, kx=3, ky=3, s=0)
 
 	x_new = np.linspace(xmin, xmax, x_bins)
 	y_new = np.linspace(ymin, ymax, y_bins)
 
-	ftm_map = f(x_new, y_new)
+	ftm_map = f(x_new, y_new).T
 
 	writeMap(ftm_map, xmin, xmax, ymin, ymax, bias, dcorr, resolution, output)
 

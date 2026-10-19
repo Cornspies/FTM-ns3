@@ -22,7 +22,9 @@
 #define FTM_ERROR_MODEL_H_
 
 #include <ns3/object.h>
+#include <map>
 #include <random>
+#include <string>
 #include <ns3/node.h>
 
 namespace ns3 {
@@ -146,7 +148,9 @@ protected:
   std::uint_least32_t m_seed;
 
   double m_mean = 0; //!< mean currently used
-  double m_standard_deviation = 0; //!< standard deviation currently used
+  // must be positive: the Mean attribute is set before Standard_Deviation during construction and
+  // std::normal_distribution asserts stddev > 0 (libstdc++ enables assertions at -O0 since GCC 15)
+  double m_standard_deviation = 2562.69; //!< standard deviation currently used
   const double m_standard_deviation_20MHz = 2562.69; //!< value for 20MHz channel bandwidth
   const double m_standard_deviation_40MHz = 1074.91; //!< value for 40MHz channel bandwidth
 

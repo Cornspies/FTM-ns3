@@ -60,12 +60,12 @@ Ptr<WirelessFtmErrorModel::FtmMap> map;
 
 static void GenerateTraffic (Ptr<WifiNetDevice> ap, Ptr<WifiNetDevice> sta, Address recvAddr)
 {
-  Ptr<RegularWifiMac> sta_mac = sta->GetMac()->GetObject<RegularWifiMac>();
+  Ptr<WifiMac> sta_mac = sta->GetMac();
 
   Mac48Address to = Mac48Address::ConvertFrom (recvAddr);
 
   Ptr<FtmSession> session = sta_mac->NewFtmSession(to);
-  if (session == 0)
+  if (session == nullptr)
     {
       NS_FATAL_ERROR ("ftm not enabled");
     }
@@ -114,16 +114,21 @@ int main (int argc, char *argv[])
 {
   //double rss = -80;  // -dBm
 
+  //set time resolution to pico seconds for the time stamps, as default is in nano seconds. IMPORTANT
+  Time::SetResolution(Time::PS);
+
   //enable FTM through attribute system
-  Config::SetDefault ("ns3::RegularWifiMac::FTM_Enabled", BooleanValue(true));
+  Config::SetDefault ("ns3::WifiMac::FTM_Enabled", BooleanValue(true));
 
   NodeContainer c;
   c.Create (2);
 
   WifiHelper wifi;
-  wifi.SetStandard (WIFI_STANDARD_80211n_2_4GHZ);
+  wifi.SetStandard (WIFI_STANDARD_80211n);
 
   YansWifiPhyHelper wifiPhy;
+  // 802.11n in the 2.4 GHz band (WIFI_STANDARD_80211n_2_4GHZ in ns-3.33)
+  wifiPhy.Set ("ChannelSettings", StringValue ("{0, 20, BAND_2_4GHZ, 0}"));
   // This is one parameter that matters when using FixedRssLossModel
   // set it to zero; otherwise, gain will be added
   wifiPhy.Set ("RxGain", DoubleValue (0) );
@@ -180,8 +185,8 @@ int main (int argc, char *argv[])
   Ptr<WifiNetDevice> wifi_ap = ap->GetObject<WifiNetDevice>();
   Ptr<WifiNetDevice> wifi_sta = sta->GetObject<WifiNetDevice>();
   //enable FTM through the MAC object
-//  Ptr<RegularWifiMac> ap_mac = wifi_ap->GetMac()->GetObject<RegularWifiMac>();
-//  Ptr<RegularWifiMac> sta_mac = wifi_sta->GetMac()->GetObject<RegularWifiMac>();
+//  Ptr<WifiMac> ap_mac = wifi_ap->GetMac();
+//  Ptr<WifiMac> sta_mac = wifi_sta->GetMac();
 //  ap_mac->EnableFtm();
 //  sta_mac->EnableFtm();
 
@@ -209,9 +214,6 @@ int main (int argc, char *argv[])
 //  Ptr<FtmParamsHolder> holder = CreateObject<FtmParamsHolder>();
 //  holder->SetFtmParams(ftm_params);
 //  Config::SetDefault("ns3::FtmSession::DefaultFtmParams", PointerValue(holder));
-
-  //set time resolution to pico seconds for the time stamps, as default is in nano seconds. IMPORTANT
-  Time::SetResolution(Time::PS);
 
   Simulator::Stop (Seconds (20.0));
   Simulator::Run ();

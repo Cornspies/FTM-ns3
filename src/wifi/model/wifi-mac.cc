@@ -10,6 +10,7 @@
 
 #include "channel-access-manager.h"
 #include "extended-capabilities.h"
+#include "ftm-manager.h"
 #include "mac-rx-middle.h"
 #include "mac-tx-middle.h"
 #include "mgt-action-headers.h"
@@ -297,6 +298,11 @@ WifiMac::GetTypeId()
                           MakeBooleanAccessor(&WifiMac::SetRobustAVStreamingSupported,
                                               &WifiMac::GetRobustAVStreamingSupported),
                           MakeBooleanChecker())
+            .AddAttribute("FTM_Enabled",
+                          "Whether or not Fine Timing Measurement (FTM) is supported.",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&WifiMac::SetFtmEnabled, &WifiMac::GetFtmEnabled),
+                          MakeBooleanChecker())
             .AddTraceSource(
                 "MacTx",
                 "A packet has been received by the WifiNetDevice and is about to be enqueued; "
@@ -442,6 +448,12 @@ void
 WifiMac::DoDispose()
 {
     NS_LOG_FUNCTION(this);
+
+    if (m_ftmManager)
+    {
+        m_ftmManager->Dispose();
+    }
+    m_ftmManager = nullptr;
 
     m_rxMiddle = nullptr;
     m_txMiddle = nullptr;
@@ -932,6 +944,8 @@ WifiMac::CompleteConfig()
     }
 
     DoCompleteConfig();
+
+    ConfigureFtmManager();
 }
 
 void
@@ -1833,6 +1847,35 @@ WifiMac::Receive(Ptr<const WifiMpdu> mpdu, uint8_t linkId)
         return;
     }
 
+    if (hdr.IsAction())
+    {
+        auto packet = mpdu->GetPacket()->Copy();
+        auto [category, action] = WifiActionHeader::Remove(packet);
+        if (category == WifiActionHeader::PUBLIC &&
+            (action.publicAction == WifiActionHeader::FTM_REQUEST ||
+             action.publicAction == WifiActionHeader::FTM_RESPONSE))
+        {
+            NS_ASSERT_MSG(m_ftmManager, "Received FTM frame but FTM is not enabled!");
+            if (!m_ftmManager)
+            {
+                return;
+            }
+            if (action.publicAction == WifiActionHeader::FTM_REQUEST)
+            {
+                FtmRequestHeader ftmReq;
+                packet->RemoveHeader(ftmReq);
+                m_ftmManager->ReceivedFtmRequest(hdr.GetAddr2(), ftmReq);
+            }
+            else
+            {
+                FtmResponseHeader ftmRes;
+                packet->RemoveHeader(ftmRes);
+                m_ftmManager->ReceivedFtmResponse(hdr.GetAddr2(), ftmRes);
+            }
+            return;
+        }
+    }
+
     // Nothing to do with (QoS) Null Data frames or management frames
     if ((hdr.IsData() && !hdr.HasData()) || hdr.IsMgt())
     {
@@ -2601,6 +2644,120 @@ WifiMac::GetRobustAVStreamingSupported() const
     NS_ASSERT_MSG(!m_robustAVStreamingSupported || GetDevice()->GetHtConfiguration(),
                   "Robust AV Streaming requires STA to be HT-capable");
     return m_robustAVStreamingSupported;
+}
+
+void
+WifiMac::SetFtmEnabled(bool enabled)
+{
+    NS_LOG_FUNCTION(this << enabled);
+    if (enabled)
+    {
+        EnableFtm();
+    }
+    else
+    {
+        DisableFtm();
+    }
+}
+
+bool
+WifiMac::GetFtmEnabled() const
+{
+    return m_ftmEnabled;
+}
+
+void
+WifiMac::EnableFtm()
+{
+    NS_LOG_FUNCTION(this);
+    m_ftmEnabled = true;
+    // if the MAC is not fully configured yet, the FTM manager is created by CompleteConfig()
+    ConfigureFtmManager();
+}
+
+void
+WifiMac::DisableFtm()
+{
+    NS_LOG_FUNCTION(this);
+    m_ftmEnabled = false;
+    if (m_ftmManager)
+    {
+        m_ftmManager->Dispose();
+        m_ftmManager = nullptr;
+    }
+}
+
+Ptr<FtmSession>
+WifiMac::NewFtmSession(Mac48Address partner)
+{
+    NS_LOG_FUNCTION(this << partner);
+    if (!m_ftmManager)
+    {
+        return nullptr;
+    }
+    return m_ftmManager->CreateNewSession(partner, FtmSession::FTM_INITIATOR);
+}
+
+void
+WifiMac::ConfigureFtmManager()
+{
+    NS_LOG_FUNCTION(this);
+
+    if (!m_ftmEnabled || m_links.empty())
+    {
+        return;
+    }
+
+    const auto& link = *m_links.cbegin()->second;
+    if (!link.phy || !link.feManager || (m_ftmManager && m_ftmManager->GetWifiPhy() == link.phy))
+    {
+        return;
+    }
+
+    if (m_ftmManager)
+    {
+        // the PHY has changed
+        m_ftmManager->Dispose();
+    }
+    m_ftmManager =
+        CreateObject<FtmManager>(link.phy, MakeCallback(&WifiMac::EnqueueFtmFrame, this));
+    m_ftmManager->SetMacAddress(link.feManager->GetAddress());
+
+    if (const auto resolution = Time::GetResolution();
+        resolution != Time::PS && resolution != Time::FS)
+    {
+        NS_LOG_WARN("FTM enabled but time resolution not set to PS or FS, FTM results will be "
+                    "less accurate!");
+    }
+}
+
+void
+WifiMac::EnqueueFtmFrame(Ptr<Packet> packet, WifiMacHeader hdr)
+{
+    NS_LOG_FUNCTION(this << packet << hdr);
+
+    auto mpdu = Create<WifiMpdu>(packet, hdr);
+    const auto linkId = GetLinkIdByAddress(hdr.GetAddr2()).value_or(SINGLE_LINK_OP_ID);
+
+    if (!GetQosSupported())
+    {
+        GetTxop()->Queue(mpdu);
+    }
+    // "A QoS STA that transmits a Management frame determines access category used
+    // for medium access in transmission of the Management frame as follows
+    // (If dot11QMFActivated is false or not present)
+    // — If the Management frame is individually addressed to a non-QoS STA, category
+    //   AC_BE should be selected.
+    // — If category AC_BE was not selected by the previous step, category AC_VO
+    //   shall be selected." (Sec. 10.2.3.2 of 802.11-2020)
+    else if (!GetWifiRemoteStationManager(linkId)->GetQosSupported(hdr.GetAddr1()))
+    {
+        GetBEQueue()->Queue(mpdu);
+    }
+    else
+    {
+        GetVOQueue()->Queue(mpdu);
+    }
 }
 
 void

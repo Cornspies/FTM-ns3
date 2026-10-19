@@ -29,6 +29,9 @@
 #include "ns3/nstime.h"
 #include "ns3/ftm-error-model.h"
 
+#include <list>
+#include <map>
+
 
 namespace ns3 {
 
@@ -270,6 +273,13 @@ public:
    * \param params the FtmParamsHolder object which includes the FtmParams to be used
    */
   void SetDefaultFtmParamsHolder (Ptr<FtmParamsHolder> params);
+
+protected:
+  /**
+   * Cancels all pending events of this session and releases the callbacks, so that no event
+   * fires on a session whose FtmManager has been disposed (e.g., after WifiMac::DisableFtm).
+   */
+  virtual void DoDispose (void);
 
 private:
   Mac48Address m_partner_addr; //!< The partner MAC address.

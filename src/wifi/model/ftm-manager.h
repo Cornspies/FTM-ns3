@@ -26,9 +26,11 @@
 #include "ns3/packet.h"
 #include "ns3/ftm-session.h"
 #include "ns3/wifi-mac-header.h"
-#include "ns3/qos-txop.h"
 #include "ns3/ftm-header.h"
-#include "ns3/mgt-headers.h"
+#include "ns3/mgt-action-headers.h"
+
+#include <list>
+#include <map>
 
 
 namespace ns3 {
@@ -55,15 +57,22 @@ public:
 
   FtmManager ();
   /**
-   * This is the main constructor that is used by the RegularWifiMac to set the PHY for the time stamps and
-   * the Txop for sending packets.
+   * This is the main constructor that is used by the WifiMac to set the PHY for the time stamps and
+   * the callback for sending packets.
    *
    * \param phy the WifiPhy
-   * \param txop the Txop
+   * \param send_packet the callback used to enqueue FTM frames at the WifiMac
    */
-  FtmManager (Ptr<WifiPhy> phy, Ptr<Txop> txop);
+  FtmManager (Ptr<WifiPhy> phy, Callback<void, Ptr<Packet>, WifiMacHeader> send_packet);
   virtual
   ~FtmManager ();
+
+  /**
+   * Returns the PHY this manager takes the time stamps from.
+   *
+   * \return the WifiPhy
+   */
+  Ptr<WifiPhy> GetWifiPhy (void) const;
 
   /**
    * Sets the own MAC address.
@@ -84,7 +93,7 @@ public:
   Ptr<FtmSession> CreateNewSession (Mac48Address partner, FtmSession::SessionType type);
 
   /**
-   * Called from the RegularWifiMac when a FTM request has been received. It then gets forwarded to
+   * Called from the WifiMac when a FTM request has been received. It then gets forwarded to
    * the correct FtmSession.
    *
    * \param partner the partner address
@@ -93,7 +102,7 @@ public:
   void ReceivedFtmRequest (Mac48Address partner, FtmRequestHeader ftm_req);
 
   /**
-   * Called from the RegularWifiMac when a FTM response has been received. It then gets forwarded to
+   * Called from the WifiMac when a FTM response has been received. It then gets forwarded to
    * the correct FtmSession.
    *
    * \param partner the partner address
@@ -101,6 +110,11 @@ public:
    */
   void ReceivedFtmResponse (Mac48Address partner, FtmResponseHeader ftm_res);
 
+protected:
+  /**
+   * Disconnects from the PHY trace sources and disposes all sessions.
+   */
+  virtual void DoDispose (void);
 
 private:
 
@@ -209,7 +223,8 @@ private:
   bool sending_ack; //!< Next packet should be ack.
   Mac48Address m_ack_to; //!< Who the ack should go to.
 
-  Ptr<Txop> m_txop; //!< The Txop.
+  Ptr<WifiPhy> m_phy; //!< The PHY the time stamps are taken from.
+  Callback<void, Ptr<Packet>, WifiMacHeader> m_send_packet; //!< Enqueues FTM frames at the WifiMac.
 
   Time m_preamble_detection_duration; //!< The preamble detection duration.
 
