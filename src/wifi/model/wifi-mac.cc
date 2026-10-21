@@ -1855,9 +1855,12 @@ WifiMac::Receive(Ptr<const WifiMpdu> mpdu, uint8_t linkId)
             (action.publicAction == WifiActionHeader::FTM_REQUEST ||
              action.publicAction == WifiActionHeader::FTM_RESPONSE))
         {
-            NS_ASSERT_MSG(m_ftmManager, "Received FTM frame but FTM is not enabled!");
             if (!m_ftmManager)
             {
+                // a device without FTM support ignores FTM frames, e.g., the FTM Request of a
+                // STA that ranges with candidate APs before association
+                NS_LOG_DEBUG("Received FTM frame but FTM is not enabled: ignore");
+                NotifyRxDrop(mpdu->GetPacket());
                 return;
             }
             if (action.publicAction == WifiActionHeader::FTM_REQUEST)
