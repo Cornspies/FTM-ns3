@@ -112,6 +112,24 @@ WifiAssocManager::GetSortedList() const
     return m_apList;
 }
 
+void
+WifiAssocManager::Resort(const Mac48Address& bssid)
+{
+    NS_LOG_FUNCTION(this << bssid);
+
+    auto hashIt = m_apListIt.find(bssid);
+    if (hashIt == m_apListIt.end())
+    {
+        return;
+    }
+    // extracting the node does not compare elements, hence the sorted list is not used with
+    // the changed information until the node is inserted again
+    auto node = m_apList.extract(hashIt->second);
+    auto [listIt, listInserted, unused] = m_apList.insert(std::move(node));
+    NS_ASSERT_MSG(listInserted, "An entry prevented the re-insertion of AP " << bssid);
+    hashIt->second = listIt;
+}
+
 const WifiScanParams&
 WifiAssocManager::GetScanParams() const
 {

@@ -161,6 +161,16 @@ class WifiAssocManager : public Object
     const SortedList& GetSortedList() const;
 
     /**
+     * Move the ApInfo object with the given BSSID, if any, to its correct position in the
+     * sorted list of ApInfo objects. Subclasses must call this method right after changing
+     * any information that affects the result of the Compare method for that AP (e.g., a
+     * distance estimate), so that the list remains sorted.
+     *
+     * @param bssid the BSSID of the given AP
+     */
+    void Resort(const Mac48Address& bssid);
+
+    /**
      * Get a reference to the list of the links to setup with the given AP. This method
      * allows subclasses to modify such a list.
      *
