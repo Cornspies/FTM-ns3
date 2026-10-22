@@ -24,13 +24,13 @@ def performTests():
             if curr_dist % 5 != 0:
                 continue
             
-            waf_command = ["--run=ftm-ranging",
+            ns3_command = ["ftm-ranging",
                     "--distance=" + str(curr_dist),
                     "--error=" + str(error_model_index),
                     "--filename=" + output
                     ]
-            waf_string = ' '.join(waf_command)
-            subprocess.run(["./waf", waf_string])
+            ns3_string = ' '.join(ns3_command)
+            subprocess.run(["./ns3", "run", ns3_string])
         error_model_index += 1
 
 def main():

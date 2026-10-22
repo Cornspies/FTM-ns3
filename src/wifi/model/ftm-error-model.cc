@@ -26,6 +26,9 @@
 #include <ns3/integer.h>
 #include <fstream>
 #include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <sstream>
 
 
 namespace ns3 {
@@ -86,8 +89,8 @@ WiredFtmErrorModel::GetTypeId (void)
     .AddAttribute("Channel_Bandwidth",
                   "The Channel Bandwidth to be used for the error. "
                   "This changes the Standard Deviation to a real measured value.",
-                  EnumValue (WiredFtmErrorModel::Channel_20_MHz),
-                  MakeEnumAccessor (&WiredFtmErrorModel::SetChannelBandwidth),
+                  EnumValue<WiredFtmErrorModel::ChannelBandwidth> (WiredFtmErrorModel::Channel_20_MHz),
+                  MakeEnumAccessor<WiredFtmErrorModel::ChannelBandwidth> (&WiredFtmErrorModel::SetChannelBandwidth),
                   MakeEnumChecker<ChannelBandwidth> (WiredFtmErrorModel::Channel_20_MHz, "Channel_20_MHz",
                                                      WiredFtmErrorModel::Channel_40_MHz, "Channel_40_MHz",
                                                      WiredFtmErrorModel::Channel_80_MHz, "Channel_80_MHz",
@@ -214,8 +217,8 @@ WirelessFtmErrorModel::WirelessFtmErrorModel ()
 {
   NS_LOG_FUNCTION (this);
 
-  m_node = 0;
-  m_map = 0;
+  m_node = nullptr;
+  m_map = nullptr;
 }
 
 WirelessFtmErrorModel::WirelessFtmErrorModel (std::uint_least32_t seed)
@@ -223,8 +226,8 @@ WirelessFtmErrorModel::WirelessFtmErrorModel (std::uint_least32_t seed)
 {
   NS_LOG_FUNCTION (this);
 
-  m_node = 0;
-  m_map = 0;
+  m_node = nullptr;
+  m_map = nullptr;
 }
 
 WirelessFtmErrorModel::~WirelessFtmErrorModel()
@@ -235,7 +238,7 @@ WirelessFtmErrorModel::~WirelessFtmErrorModel()
 int
 WirelessFtmErrorModel::GetFtmError (double sig_str)
 {
-  if (m_node == 0 || m_map == 0)
+  if (m_node == nullptr || m_map == nullptr)
     {
       return 0 + WiredFtmErrorModel::GetFtmError (sig_str);
     }

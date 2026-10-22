@@ -94,6 +94,8 @@ class WIFI_EXPORT WifiActionHeader : public Header
     {
         QAB_REQUEST = 16,
         QAB_RESPONSE = 17,
+        FTM_REQUEST = 32,  // Fine Timing Measurement Request
+        FTM_RESPONSE = 33, // Fine Timing Measurement
         FILS_DISCOVERY = 34
     };
 
