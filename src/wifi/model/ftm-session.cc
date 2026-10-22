@@ -484,12 +484,18 @@ FtmSession::SendNextFtmPacket (void)
     }
   if(m_ftms_per_burst_remaining > 0 && Simulator::Now() < m_current_burst_end)
     {
-      if (!CheckTimestampSet () && m_timestamp_set_checks_next_frame < 10)
+      // wait for the time stamps of the previous frame (set when its Ack is received), but give
+      // up after 200 checks per frame in case the Ack got lost. The previous limit of 10 checks
+      // for the whole session (250 us at 100 us Min Delta FTM) was used up by the first frame,
+      // as one FTM/Ack exchange takes about 1 ms, so all following frames were sent without
+      // the time stamps of their predecessor and the initiator recorded RTTs of 0.
+      if (!CheckTimestampSet () && m_timestamp_set_checks_next_frame < 200)
         {
           m_next_packet_event = Simulator::Schedule(m_next_ftm_packet / 4, &FtmSession::SendNextFtmPacket, this);
           m_timestamp_set_checks_next_frame++;
           return;
         }
+      m_timestamp_set_checks_next_frame = 0;
       bool add_tsf_sync = false;
       if (m_ftms_per_burst_remaining == m_ftm_params.GetFtmsPerBurst())
         {
