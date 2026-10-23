@@ -729,6 +729,12 @@ FtmSession::GetFtmDialogs (void)
   return m_ftm_dialogs;
 }
 
+Mac48Address
+FtmSession::GetPartnerAddress (void) const
+{
+  return m_partner_addr;
+}
+
 int64_t
 FtmSession::GetMeanRTT (void)
 {

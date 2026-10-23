@@ -44,9 +44,11 @@ class WIFI_EXPORT WifiDefaultAssocManager : public WifiAssocManager
 
     /**
      * Perform operations to do at the end of a scanning procedure, such as
-     * identifying the links to setup in case of 11be MLD devices.
+     * identifying the links to setup in case of 11be MLD devices. Subclasses may
+     * override this method to perform additional steps (e.g., ranging with the
+     * candidate APs) before calling this method.
      */
-    void EndScanning();
+    virtual void EndScanning();
 
   private:
     void DoStartScanning() override;

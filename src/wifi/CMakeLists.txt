@@ -73,6 +73,7 @@ set(source_files
     model/fcfs-wifi-queue-scheduler.cc
     model/frame-capture-model.cc
     model/frame-exchange-manager.cc
+    model/ftm-assoc-manager.cc
     model/ftm-error-model.cc
     model/ftm-header.cc
     model/ftm-manager.cc
@@ -256,6 +257,7 @@ set(header_files
     model/fcfs-wifi-queue-scheduler.h
     model/frame-capture-model.h
     model/frame-exchange-manager.h
+    model/ftm-assoc-manager.h
     model/ftm-error-model.h
     model/ftm-header.h
     model/ftm-manager.h

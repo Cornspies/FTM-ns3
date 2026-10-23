@@ -203,6 +203,13 @@ public:
   std::map<uint8_t, Ptr<FtmDialog>> GetFtmDialogs (void);
 
   /**
+   * Returns the MAC address of the partner of this session.
+   *
+   * \return the partner MAC address
+   */
+  Mac48Address GetPartnerAddress (void) const;
+
+  /**
    * Returns the mean RTT.
    *
    * \return the mean RTT
