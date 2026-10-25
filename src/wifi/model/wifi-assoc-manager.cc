@@ -113,6 +113,14 @@ WifiAssocManager::GetSortedList() const
 }
 
 void
+WifiAssocManager::ClearSortedList()
+{
+    NS_LOG_FUNCTION(this);
+    m_apList.clear();
+    m_apListIt.clear();
+}
+
+void
 WifiAssocManager::Resort(const Mac48Address& bssid)
 {
     NS_LOG_FUNCTION(this << bssid);

@@ -101,7 +101,9 @@ WifiDefaultAssocManager::DoStartScanning()
         return;
     }
 
-    const_cast<SortedList&>(GetSortedList()).clear();
+    // clearing only the sorted list would leave dangling iterators in the hash table used to
+    // locate its entries, which are dereferenced when an AP with the same BSSID is found again
+    ClearSortedList();
     m_probeRequestEvent.Cancel();
     m_waitBeaconEvent.Cancel();
 

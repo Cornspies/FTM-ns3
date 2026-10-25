@@ -182,6 +182,12 @@ class WIFI_EXPORT WifiAssocManager : public Object
     void Resort(const Mac48Address& bssid);
 
     /**
+     * Remove all the ApInfo objects from the sorted list, together with the entries of the
+     * hash table used to locate them.
+     */
+    void ClearSortedList();
+
+    /**
      * Get a reference to the list of the links to setup with the given AP. This method
      * allows subclasses to modify such a list.
      *
