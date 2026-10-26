@@ -12,6 +12,7 @@
 #include "ns3/double.h"
 #include "ns3/enum.h"
 #include "ns3/log.h"
+#include "ns3/mobility-model.h"
 #include "ns3/node.h"
 #include "ns3/pointer.h"
 #include "ns3/simulator.h"
@@ -21,6 +22,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <limits>
 
 namespace ns3
 {
@@ -123,6 +125,15 @@ FtmAssocManager::GetTypeId()
                           DoubleValue(3.0),
                           MakeDoubleAccessor(&FtmAssocManager::m_rssiExponent),
                           MakeDoubleChecker<double>(0))
+            .AddAttribute("MaxRangingSpeed",
+                          "Skip ranging if the STA moves faster than this speed (m/s) at the end "
+                          "of scanning; the APs are then ordered by SNR. The speed is taken from "
+                          "the mobility model of the STA's node, i.e., it is exact, whereas real "
+                          "devices detect motion with their inertial sensors. By default (the "
+                          "largest double), ranging is never skipped because of motion.",
+                          DoubleValue(std::numeric_limits<double>::max()),
+                          MakeDoubleAccessor(&FtmAssocManager::m_maxRangingSpeed),
+                          MakeDoubleChecker<double>(0))
             .AddTraceSource("RangingResult",
                             "Ranging with a candidate AP has ended.",
                             MakeTraceSourceAccessor(&FtmAssocManager::m_rangingTrace),
@@ -168,6 +179,13 @@ FtmAssocManager::DoDispose()
     m_current.reset();
     m_distances.clear();
     WifiDefaultAssocManager::DoDispose();
+}
+
+double
+FtmAssocManager::GetStaSpeed() const
+{
+    auto mobility = m_mac->GetDevice()->GetNode()->GetObject<MobilityModel>();
+    return mobility ? mobility->GetVelocity().GetLength() : 0;
 }
 
 double
@@ -313,6 +331,14 @@ FtmAssocManager::EndScanning()
     }
 
     m_toRange = SelectApsToRange();
+    m_decision.staSpeed = GetStaSpeed();
+    if (!m_toRange.empty() && m_decision.staSpeed > m_maxRangingSpeed)
+    {
+        NS_LOG_DEBUG("STA moves at " << m_decision.staSpeed << " m/s, faster than "
+                                     << m_maxRangingSpeed << " m/s: no ranging");
+        m_toRange.clear();
+        m_decision.skippedForMotion = true;
+    }
     m_decision.nRanged = m_toRange.size();
     if (m_toRange.empty())
     {
@@ -510,7 +536,9 @@ operator<<(std::ostream& os, const FtmAssocManager::Decision& decision)
     {
         os << "none";
     }
-    os << " rangingDuration=" << decision.rangingDuration.As(Time::US);
+    os << " rangingDuration=" << decision.rangingDuration.As(Time::US)
+       << " staSpeed=" << decision.staSpeed << "m/s"
+       << (decision.skippedForMotion ? " (ranging skipped: STA moving)" : "");
     return os;
 }
 

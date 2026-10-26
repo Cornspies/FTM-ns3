@@ -103,7 +103,9 @@ Decision(const FtmAssocManager::Decision& decision)
     std::cout << "decision  " << ApName(decision.bssid) << " (strongest: "
               << ApName(decision.strongestBssid) << "), " << decision.nRanged << " of "
               << decision.nCandidates << " candidates ranged, ranging took "
-              << decision.rangingDuration.As(Time::MS) << std::endl;
+              << decision.rangingDuration.As(Time::MS) << ", STA speed " << std::fixed
+              << std::setprecision(2) << decision.staSpeed << " m/s"
+              << (decision.skippedForMotion ? " (ranging skipped: STA moving)" : "") << std::endl;
 }
 
 void
@@ -129,6 +131,8 @@ main(int argc, char* argv[])
     double txPower = 16;
     uint32_t ftmsPerBurst = 8;
     bool ftmOnAp0 = true;
+    double staSpeed = 0;
+    double maxRangingSpeed = -1;
 
     CommandLine cmd(__FILE__);
     cmd.AddValue("strategy", "StrongestRssi, ClosestAp, RssiFiltered or Combined", strategy);
@@ -140,6 +144,10 @@ main(int argc, char* argv[])
     cmd.AddValue("txPower", "Transmit power of all devices (dBm)", txPower);
     cmd.AddValue("ftmsPerBurst", "Number of FTM frames per ranging session", ftmsPerBurst);
     cmd.AddValue("ftmOnAp0", "Whether AP0 supports FTM", ftmOnAp0);
+    cmd.AddValue("staSpeed", "Speed of the STA (m/s), perpendicular to the APs' axis", staSpeed);
+    cmd.AddValue("maxRangingSpeed",
+                 "Skip ranging if the STA is faster than this (m/s); negative: no limit",
+                 maxRangingSpeed);
     cmd.Parse(argc, argv);
 
     Config::SetDefault("ns3::WifiMac::FTM_Enabled", BooleanValue(true));
@@ -155,7 +163,9 @@ main(int argc, char* argv[])
     mobility.SetPositionAllocator(positions);
     mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
     mobility.Install(apNodes);
+    mobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
     mobility.Install(staNode);
+    staNode.Get(0)->GetObject<ConstantVelocityMobilityModel>()->SetVelocity(Vector(0, staSpeed, 0));
 
     // log-distance path loss for all links, plus the obstruction on the links with AP0
     auto obstruction = CreateObject<MatrixPropagationLossModel>();
@@ -205,6 +215,10 @@ main(int argc, char* argv[])
     // i.e., without knowledge of the obstruction
     assocManager->SetAttribute("RssiTxPower", DoubleValue(txPower));
     g_staMobility = staNode.Get(0)->GetObject<MobilityModel>();
+    if (maxRangingSpeed >= 0)
+    {
+        assocManager->SetAttribute("MaxRangingSpeed", DoubleValue(maxRangingSpeed));
+    }
 
     const std::map<std::string, std::string> errorModels{
         {"ideal", "ns3::FtmErrorModel"},

@@ -42,8 +42,9 @@ class FtmSession;
  * - Combined: only candidates whose SNR is at least MinSnr are considered; they are ranged
  *   and the closest of them is chosen.
  *
- * Ranging is skipped if fewer than two candidates are left, or if SkipRangingMargin is
- * positive and the strongest candidate exceeds the second strongest by at least that margin.
+ * Ranging is skipped if fewer than two candidates are left, if SkipRangingMargin is
+ * positive and the strongest candidate exceeds the second strongest by at least that margin,
+ * or if the STA moves faster than MaxRangingSpeed.
  * APs that could not be ranged are ordered after the ranged ones, by decreasing SNR.
  *
  * FTM must be enabled on the STA (WifiMac::FTM_Enabled) and on the APs.
@@ -87,6 +88,8 @@ class FtmAssocManager : public WifiDefaultAssocManager
         std::optional<Mac48Address> strongestBssid; ///< BSSID of the AP with the highest SNR
         Time scanningEnd;                   ///< time scanning ended
         Time rangingDuration;               ///< time spent ranging with the candidate APs
+        double staSpeed{0};                 ///< speed of the STA (m/s) at the end of scanning
+        bool skippedForMotion{false};       ///< whether ranging was skipped as the STA moved
     };
 
     /**
@@ -138,6 +141,12 @@ class FtmAssocManager : public WifiDefaultAssocManager
     bool IsEligible(const StaWifiMac::ApInfo& apInfo) const;
 
     /**
+     * @return the speed (m/s) of the STA according to the mobility model of its node, or 0 if
+     *         the node has no mobility model
+     */
+    double GetStaSpeed() const;
+
+    /**
      * Remove the distance estimates of the previous scanning procedure.
      */
     void ClearDistances();
@@ -185,6 +194,7 @@ class FtmAssocManager : public WifiDefaultAssocManager
     double m_rssiTxPower;              ///< RSSI distance model: transmit power of the APs (dBm)
     double m_rssiReferenceLoss;        ///< RSSI distance model: path loss at 1 m (dB)
     double m_rssiExponent;             ///< RSSI distance model: path loss exponent
+    double m_maxRangingSpeed;          ///< skip ranging if the STA is faster than this (m/s)
 
     std::map<Mac48Address, double> m_distances; ///< distance estimates by BSSID
     std::list<RangingResult> m_toRange;          ///< APs still to range with
