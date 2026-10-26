@@ -36,8 +36,10 @@ NS_LOG_COMPONENT_DEFINE("FtmAssociation");
 
 namespace
 {
-std::map<Mac48Address, std::string> g_apNames; ///< AP names by BSSID
-Time g_scanStart;                              ///< time the STA started scanning
+std::map<Mac48Address, std::string> g_apNames;                ///< AP names by BSSID
+std::map<Mac48Address, Ptr<MobilityModel>> g_apMobility;      ///< AP mobility by BSSID
+Ptr<MobilityModel> g_staMobility;                             ///< STA mobility
+Time g_scanStart;                                             ///< time the STA started scanning
 
 std::string
 ApName(const std::optional<Mac48Address>& bssid)
@@ -65,12 +67,32 @@ Distance(const std::optional<double>& distance)
     return os.str();
 }
 
+/// distance estimate and its error with respect to the true distance
+std::string
+DistanceWithError(const std::optional<double>& distance, double trueDistance)
+{
+    std::ostringstream os;
+    os << Distance(distance);
+    if (distance)
+    {
+        os << " (" << std::showpos << std::fixed << std::setprecision(2)
+           << *distance - trueDistance << " m)" << std::noshowpos;
+    }
+    return os.str();
+}
+
 void
 RangingResult(const FtmAssocManager::RangingResult& result)
 {
-    std::cout << "ranging   " << ApName(result.bssid) << ": distance " << Distance(result.distance)
-              << ", valid RTTs " << result.nValidRtts << "/" << result.nRtts << ", SNR "
-              << std::fixed << std::setprecision(1) << RatioToDb(result.snr) << " dB, took "
+    const auto trueDistance = g_apMobility.at(result.bssid)->GetDistanceFrom(g_staMobility);
+    std::cout << "ranging   " << ApName(result.bssid) << ": true " << Distance(trueDistance)
+              << ", FTM " << DistanceWithError(result.distance, trueDistance) << ", RSSI "
+              << DistanceWithError(result.rssiDistance, trueDistance);
+    if (result.rssi)
+    {
+        std::cout << " from " << std::fixed << std::setprecision(1) << *result.rssi << " dBm";
+    }
+    std::cout << "; valid RTTs " << result.nValidRtts << "/" << result.nRtts << ", took "
               << result.duration.As(Time::MS) << (result.timedOut ? " (timed out)" : "")
               << std::endl;
 }
@@ -170,6 +192,8 @@ main(int argc, char* argv[])
 
     for (uint32_t i = 0; i < apDevices.GetN(); ++i)
     {
+        g_apMobility[Mac48Address::ConvertFrom(apDevices.Get(i)->GetAddress())] =
+            apNodes.Get(i)->GetObject<MobilityModel>();
         g_apNames[Mac48Address::ConvertFrom(apDevices.Get(i)->GetAddress())] =
             "AP" + std::to_string(i) + (i == 0 ? " (near)" : " (far)");
     }
@@ -177,6 +201,10 @@ main(int argc, char* argv[])
     // FTM-based association manager; installed here to keep a handle for the trace sources
     auto assocManager = CreateObject<FtmAssocManager>();
     assocManager->SetAttribute("Strategy", StringValue(strategy));
+    // RSSI-based distance estimates (for comparison) with the propagation model of this scenario,
+    // i.e., without knowledge of the obstruction
+    assocManager->SetAttribute("RssiTxPower", DoubleValue(txPower));
+    g_staMobility = staNode.Get(0)->GetObject<MobilityModel>();
 
     const std::map<std::string, std::string> errorModels{
         {"ideal", "ns3::FtmErrorModel"},

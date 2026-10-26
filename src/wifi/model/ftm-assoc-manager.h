@@ -68,6 +68,8 @@ class FtmAssocManager : public WifiDefaultAssocManager
         std::size_t nRtts{0};           ///< number of FTM dialogs reported by the session
         std::size_t nValidRtts{0};      ///< number of dialogs with all time stamps (RTT != 0)
         std::optional<double> distance; ///< distance estimate in meters, if any valid RTT
+        std::optional<double> rssi;     ///< mean RSSI (dBm) of the FTM frames of valid dialogs
+        std::optional<double> rssiDistance; ///< distance in meters estimated from the RSSI
         Time start;                     ///< time the FTM session was started
         Time duration;                  ///< duration of the FTM session
         bool timedOut{false};           ///< whether the RangingTimeout expired
@@ -111,6 +113,17 @@ class FtmAssocManager : public WifiDefaultAssocManager
     ~FtmAssocManager() override;
 
     bool Compare(const StaWifiMac::ApInfo& lhs, const StaWifiMac::ApInfo& rhs) const override;
+
+    /**
+     * Estimate the distance to an AP from an RSSI with the log-distance path loss model given
+     * by the attributes RssiTxPower, RssiReferenceLoss and RssiExponent (reference distance
+     * 1 m): d = 10^((RssiTxPower - RssiReferenceLoss - rssi) / (10 * RssiExponent)) m.
+     * The estimate is only used for comparison with FTM; it does not affect the AP selection.
+     *
+     * @param rssi the RSSI in dBm
+     * @return the distance estimate in meters
+     */
+    double EstimateDistanceFromRssi(double rssi) const;
 
   protected:
     void DoDispose() override;
@@ -169,6 +182,9 @@ class FtmAssocManager : public WifiDefaultAssocManager
     Ptr<FtmParamsHolder> m_ftmParams;  ///< FTM parameters of the sessions
     ObjectFactory m_errorModelFactory; ///< factory for the FTM error model of each session
     Time m_rangingTimeout;             ///< maximum duration of the FTM session with one AP
+    double m_rssiTxPower;              ///< RSSI distance model: transmit power of the APs (dBm)
+    double m_rssiReferenceLoss;        ///< RSSI distance model: path loss at 1 m (dB)
+    double m_rssiExponent;             ///< RSSI distance model: path loss exponent
 
     std::map<Mac48Address, double> m_distances; ///< distance estimates by BSSID
     std::list<RangingResult> m_toRange;          ///< APs still to range with

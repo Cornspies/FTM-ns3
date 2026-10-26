@@ -19,6 +19,7 @@
 #include "ns3/wifi-net-device.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 
 namespace ns3
@@ -103,6 +104,25 @@ FtmAssocManager::GetTypeId()
                           TimeValue(MilliSeconds(100)),
                           MakeTimeAccessor(&FtmAssocManager::m_rangingTimeout),
                           MakeTimeChecker(Seconds(0), Seconds(10)))
+            .AddAttribute("RssiTxPower",
+                          "Transmit power of the APs (dBm) assumed to estimate the distance from "
+                          "the RSSI of the FTM frames (for comparison only). The default is the "
+                          "default TxPowerStart of WifiPhy.",
+                          DoubleValue(16.0206),
+                          MakeDoubleAccessor(&FtmAssocManager::m_rssiTxPower),
+                          MakeDoubleChecker<double>())
+            .AddAttribute("RssiReferenceLoss",
+                          "Path loss at 1 m (dB) assumed to estimate the distance from the RSSI. "
+                          "The default is that of LogDistancePropagationLossModel.",
+                          DoubleValue(46.6777),
+                          MakeDoubleAccessor(&FtmAssocManager::m_rssiReferenceLoss),
+                          MakeDoubleChecker<double>())
+            .AddAttribute("RssiExponent",
+                          "Path loss exponent assumed to estimate the distance from the RSSI. The "
+                          "default is that of LogDistancePropagationLossModel.",
+                          DoubleValue(3.0),
+                          MakeDoubleAccessor(&FtmAssocManager::m_rssiExponent),
+                          MakeDoubleChecker<double>(0))
             .AddTraceSource("RangingResult",
                             "Ranging with a candidate AP has ended.",
                             MakeTraceSourceAccessor(&FtmAssocManager::m_rangingTrace),
@@ -148,6 +168,12 @@ FtmAssocManager::DoDispose()
     m_current.reset();
     m_distances.clear();
     WifiDefaultAssocManager::DoDispose();
+}
+
+double
+FtmAssocManager::EstimateDistanceFromRssi(double rssi) const
+{
+    return std::pow(10.0, (m_rssiTxPower - m_rssiReferenceLoss - rssi) / (10 * m_rssiExponent));
 }
 
 bool
@@ -352,14 +378,20 @@ FtmAssocManager::SessionOver(FtmSession session)
     }
     m_timeoutEvent.Cancel();
 
-    // an RTT of 0 marks a dialog whose time stamps were not all available
+    // an RTT of 0 marks a dialog whose time stamps were not all available; the signal strength
+    // (dBm) of the FTM frame of each dialog is stored at the same position in its list
     const auto rtts = session.GetIndividualRTT();
+    const auto sigStrs = session.GetIndividualSignalStrength();
+    NS_ASSERT(rtts.size() == sigStrs.size());
     double sum = 0;
-    for (const auto rtt : rtts)
+    double rxPowerSum = 0; // mW
+    auto sigStr = sigStrs.cbegin();
+    for (auto rtt = rtts.cbegin(); rtt != rtts.cend(); ++rtt, ++sigStr)
     {
-        if (rtt != 0)
+        if (*rtt != 0)
         {
-            sum += rtt;
+            sum += *rtt;
+            rxPowerSum += std::pow(10.0, *sigStr / 10);
             m_current->nValidRtts++;
         }
     }
@@ -368,6 +400,9 @@ FtmAssocManager::SessionOver(FtmSession session)
     {
         // RTTs are in picoseconds
         m_current->distance = sum / m_current->nValidRtts * 1e-12 * SPEED_OF_LIGHT / 2;
+        // average the received power in the linear domain
+        m_current->rssi = 10 * std::log10(rxPowerSum / m_current->nValidRtts);
+        m_current->rssiDistance = EstimateDistanceFromRssi(*m_current->rssi);
     }
 
     // the session is still being torn down by the FTM manager; continue afterwards
@@ -435,6 +470,10 @@ operator<<(std::ostream& os, const FtmAssocManager::RangingResult& result)
     else
     {
         os << "none";
+    }
+    if (result.rssi)
+    {
+        os << " rssi=" << *result.rssi << "dBm rssiDistance=" << *result.rssiDistance << "m";
     }
     os << " start=" << result.start.As(Time::US) << " duration=" << result.duration.As(Time::US)
        << (result.timedOut ? " (timed out)" : "");
