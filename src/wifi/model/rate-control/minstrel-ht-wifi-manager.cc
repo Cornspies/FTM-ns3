@@ -575,8 +575,25 @@ MinstrelHtWifiManager::DoReportFinalRtsFailed(WifiRemoteStation* st)
 }
 
 void
+MinstrelHtWifiManager::SetExternalDataRate(Mac48Address address, bool external)
+{
+    if (external)
+    {
+        m_externalDataRates.insert(address);
+    }
+    else
+    {
+        m_externalDataRates.erase(address);
+    }
+}
+
+void
 MinstrelHtWifiManager::DoReportDataFailed(WifiRemoteStation* st)
 {
+    if (m_externalDataRates.contains(GetAddress(st)))
+    {
+        return;
+    }
     NS_LOG_FUNCTION(this << st);
     auto station = static_cast<MinstrelHtWifiRemoteStation*>(st);
 
@@ -612,6 +629,10 @@ MinstrelHtWifiManager::DoReportDataOk(WifiRemoteStation* st,
                                       MHz_u dataChannelWidth,
                                       uint8_t dataNss)
 {
+    if (m_externalDataRates.contains(GetAddress(st)))
+    {
+        return;
+    }
     NS_LOG_FUNCTION(this << st << ackSnr << ackMode << dataSnr << dataChannelWidth << dataNss);
     auto station = static_cast<MinstrelHtWifiRemoteStation*>(st);
 
@@ -693,6 +714,10 @@ MinstrelHtWifiManager::DoReportDataOk(WifiRemoteStation* st,
 void
 MinstrelHtWifiManager::DoReportFinalDataFailed(WifiRemoteStation* st)
 {
+    if (m_externalDataRates.contains(GetAddress(st)))
+    {
+        return;
+    }
     NS_LOG_FUNCTION(this << st);
     auto station = static_cast<MinstrelHtWifiRemoteStation*>(st);
 
@@ -746,6 +771,10 @@ MinstrelHtWifiManager::DoReportAmpduTxStatus(WifiRemoteStation* st,
                                              MHz_u dataChannelWidth,
                                              uint8_t dataNss)
 {
+    if (m_externalDataRates.contains(GetAddress(st)))
+    {
+        return;
+    }
     NS_LOG_FUNCTION(this << st << nSuccessfulMpdus << nFailedMpdus << rxSnr << dataSnr
                          << dataChannelWidth << dataNss);
     auto station = static_cast<MinstrelHtWifiRemoteStation*>(st);
@@ -1159,6 +1188,10 @@ MinstrelHtWifiManager::DoNeedRetransmission(WifiRemoteStation* st,
                                             Ptr<const Packet> packet,
                                             bool normally)
 {
+    if (m_externalDataRates.contains(GetAddress(st)))
+    {
+        return normally;
+    }
     NS_LOG_FUNCTION(this << st << packet << normally);
 
     auto station = static_cast<MinstrelHtWifiRemoteStation*>(st);

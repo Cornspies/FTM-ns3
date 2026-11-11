@@ -2571,7 +2571,9 @@ WifiMac::GetHtCapabilities(uint8_t linkId) const
     capabilities.SetRxHighestSupportedDataRate(
         static_cast<uint16_t>(maxSupportedRate / 1e6)); // in Mbit/s
     capabilities.SetTxMcsSetDefined(phy->GetNMcs() > 0);
-    capabilities.SetTxMaxNSpatialStreams(phy->GetMaxSupportedTxSpatialStreams());
+    // the HT capabilities cannot express more than four spatial streams
+    capabilities.SetTxMaxNSpatialStreams(
+        std::min<uint8_t>(4, phy->GetMaxSupportedTxSpatialStreams()));
     // we do not support unequal modulations
     capabilities.SetTxRxMcsSetUnequal(0);
     capabilities.SetTxUnequalModulation(0);

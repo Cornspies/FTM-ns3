@@ -2382,14 +2382,14 @@ WifiRemoteStationManager::GetAggregation(const WifiRemoteStation* station) const
 uint8_t
 WifiRemoteStationManager::GetNumberOfSupportedStreams(const WifiRemoteStation* station) const
 {
+    // an HE station may support more streams than its HT capabilities can express
+    if (const auto heCapabilities = station->m_state->m_heCapabilities)
+    {
+        return heCapabilities->GetHighestNssSupported();
+    }
     const auto htCapabilities = station->m_state->m_htCapabilities;
-
     if (!htCapabilities)
     {
-        if (const auto heCapabilities = station->m_state->m_heCapabilities)
-        {
-            return heCapabilities->GetHighestNssSupported();
-        }
         return 1;
     }
     return htCapabilities->GetRxHighestSupportedAntennas();
@@ -2507,8 +2507,12 @@ WifiRemoteStationManager::GetShortGuardIntervalSupported(Mac48Address address) c
 uint8_t
 WifiRemoteStationManager::GetNumberOfSupportedStreams(Mac48Address address) const
 {
-    Ptr<const HtCapabilities> htCapabilities = LookupState(address)->m_htCapabilities;
-
+    const auto state = LookupState(address);
+    if (const auto heCapabilities = state->m_heCapabilities)
+    {
+        return heCapabilities->GetHighestNssSupported();
+    }
+    Ptr<const HtCapabilities> htCapabilities = state->m_htCapabilities;
     if (!htCapabilities)
     {
         return 1;

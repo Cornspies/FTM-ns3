@@ -349,13 +349,17 @@ class WIFI_EXPORT InterferenceHelper : public Object
      * @param duration the duration of the chunk
      * @param txVector the TXVECTOR
      * @param staId the station ID of the PSDU (only used for MU)
+     * @param ppdu the PPDU the chunk belongs to, for error rate models that depend on it
+     * @param windowDuration the duration of the reception window of the MPDU (0 if unknown)
      *
      * @return the success rate
      */
     double CalculatePayloadChunkSuccessRate(double snir,
                                             Time duration,
                                             const WifiTxVector& txVector,
-                                            uint16_t staId = SU_STA_ID) const;
+                                            uint16_t staId = SU_STA_ID,
+                                            Ptr<const WifiPpdu> ppdu = nullptr,
+                                            Time windowDuration = Seconds(0)) const;
 
   protected:
     std::map<FrequencyRange, bool>

@@ -536,7 +536,9 @@ double
 InterferenceHelper::CalculatePayloadChunkSuccessRate(double snir,
                                                      Time duration,
                                                      const WifiTxVector& txVector,
-                                                     uint16_t staId) const
+                                                     uint16_t staId,
+                                                     Ptr<const WifiPpdu> ppdu,
+                                                     Time windowDuration) const
 {
     if (duration.IsZero())
     {
@@ -547,13 +549,16 @@ InterferenceHelper::CalculatePayloadChunkSuccessRate(double snir,
     auto nbits = static_cast<uint64_t>(rate * duration.GetSeconds());
     nbits /= txVector.GetNss(staId); // divide effective number of bits by NSS to achieve same chunk
                                      // error rate as SISO for AWGN
-    double csr = m_errorRateModel->GetChunkSuccessRate(mode,
-                                                       txVector,
-                                                       snir,
-                                                       nbits,
-                                                       m_numRxAntennas,
-                                                       WIFI_PPDU_FIELD_DATA,
-                                                       staId);
+    double csr = m_errorRateModel->GetPayloadChunkSuccessRate(
+        mode,
+        txVector,
+        snir,
+        nbits,
+        m_numRxAntennas,
+        staId,
+        ppdu,
+        windowDuration.IsStrictlyPositive() ? duration.GetSeconds() / windowDuration.GetSeconds()
+                                            : 0.0);
     return csr;
 }
 
@@ -604,7 +609,9 @@ InterferenceHelper::CalculatePayloadPer(Ptr<const Event> event,
             psr *= CalculatePayloadChunkSuccessRate(snr,
                                                     Min(windowEnd, current) - previous,
                                                     event->GetPpdu()->GetTxVector(),
-                                                    staId);
+                                                    staId,
+                                                    event->GetPpdu(),
+                                                    windowEnd - windowStart);
             NS_LOG_DEBUG("Both previous and current point to the windowed payload: mode="
                          << payloadMode << ", psr=" << psr);
         }
@@ -614,7 +621,9 @@ InterferenceHelper::CalculatePayloadPer(Ptr<const Event> event,
             psr *= CalculatePayloadChunkSuccessRate(snr,
                                                     Min(windowEnd, current) - windowStart,
                                                     event->GetPpdu()->GetTxVector(),
-                                                    staId);
+                                                    staId,
+                                                    event->GetPpdu(),
+                                                    windowEnd - windowStart);
             NS_LOG_DEBUG(
                 "previous is before windowed payload and current is in the windowed payload: mode="
                 << payloadMode << ", psr=" << psr);

@@ -17,6 +17,8 @@
 namespace ns3
 {
 
+class WifiPpdu;
+
 /**
  * @ingroup wifi
  * @brief the interface for Wifi's error models
@@ -81,6 +83,42 @@ class WIFI_EXPORT ErrorRateModel : public Object
                                uint8_t numRxAntennas = 1,
                                WifiPpduField field = WIFI_PPDU_FIELD_DATA,
                                uint16_t staId = SU_STA_ID) const;
+
+    /**
+     * Success rate of a chunk of the payload, with the PPDU it belongs to and the fraction of
+     * the reception window of the MPDU that the chunk covers. Models that depend on this
+     * context (e.g., on the PSDU length) override it; by default, the chunk is evaluated
+     * as by GetChunkSuccessRate.
+     *
+     * @param mode the Wi-Fi mode applicable to this chunk
+     * @param txVector TXVECTOR of the overall transmission
+     * @param snr the SNR of the chunk
+     * @param nbits the number of bits in this chunk
+     * @param numRxAntennas the number of active RX antennas
+     * @param staId the station ID for MU
+     * @param ppdu the PPDU the chunk belongs to (may be null)
+     * @param chunkFraction the duration of the chunk divided by that of the reception window
+     *                      of the MPDU (0 if unknown)
+     *
+     * @return probability of successfully receiving the chunk
+     */
+    virtual double GetPayloadChunkSuccessRate(WifiMode mode,
+                                              const WifiTxVector& txVector,
+                                              double snr,
+                                              uint64_t nbits,
+                                              uint8_t numRxAntennas,
+                                              uint16_t staId,
+                                              const Ptr<const WifiPpdu>& ppdu,
+                                              double chunkFraction) const
+    {
+        return GetChunkSuccessRate(mode,
+                                   txVector,
+                                   snr,
+                                   nbits,
+                                   numRxAntennas,
+                                   WIFI_PPDU_FIELD_DATA,
+                                   staId);
+    }
 
     /**
      * Assign a fixed random variable stream number to the random variables

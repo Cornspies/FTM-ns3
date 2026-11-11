@@ -20,6 +20,8 @@
 #include "ns3/wifi-remote-station-manager.h"
 #include "ns3/wifi-types.h"
 
+#include <set>
+
 namespace ns3
 {
 
@@ -217,6 +219,16 @@ class WIFI_EXPORT MinstrelHtWifiManager : public WifiRemoteStationManager
     void SetupPhy(const Ptr<WifiPhy> phy) override;
     void SetupMac(const Ptr<WifiMac> mac) override;
     int64_t AssignStreams(int64_t stream) override;
+
+    /**
+     * Exclude frames sent to the given station from the statistics of Minstrel, e.g., while
+     * their data rate is selected by a multi-user scheduler. Retransmissions and Block Ack
+     * bookkeeping of the MAC are not affected.
+     *
+     * @param address the address of the station
+     * @param external true to exclude the frames sent to the station, false to include them
+     */
+    void SetExternalDataRate(Mac48Address address, bool external);
 
     /**
      * A struct to contain information of a standard.
@@ -720,6 +732,8 @@ class WIFI_EXPORT MinstrelHtWifiManager : public WifiRemoteStationManager
     Ptr<UniformRandomVariable> m_uniformRandomVariable; //!< Provides uniform random variables.
 
     TracedValue<uint64_t> m_currentRate; //!< Trace rate changes
+
+    std::set<Mac48Address> m_externalDataRates; //!< stations whose data rates are set externally
 };
 
 } // namespace ns3

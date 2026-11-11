@@ -949,7 +949,8 @@ WifiPhy::Configure80211n()
     {
         Configure80211a();
     }
-    AddPhyEntity(WIFI_MOD_CLASS_HT, std::make_shared<HtPhy>(m_txSpatialStreams));
+    AddPhyEntity(WIFI_MOD_CLASS_HT,
+                 std::make_shared<HtPhy>(std::min(HT_MAX_NSS, m_txSpatialStreams)));
 }
 
 void

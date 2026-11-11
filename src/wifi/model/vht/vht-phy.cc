@@ -506,7 +506,7 @@ VhtPhy::IsAllowed(const WifiTxVector& txVector)
 bool
 VhtPhy::IsCombinationAllowed(uint8_t mcsValue, MHz_u channelWidth, uint8_t nss)
 {
-    if (mcsValue == 9 && channelWidth == MHz_u{20} && nss != 3)
+    if (mcsValue == 9 && channelWidth == MHz_u{20} && nss != 3 && nss != 6)
     {
         return false;
     }
