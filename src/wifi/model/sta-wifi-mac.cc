@@ -15,6 +15,7 @@
 #include "mgt-action-headers.h"
 #include "power-save-manager.h"
 #include "qos-txop.h"
+#include "rssi-tag.h"
 #include "snr-tag.h"
 #include "wifi-assoc-manager.h"
 #include "wifi-mac-queue.h"
@@ -1425,9 +1426,13 @@ StaWifiMac::ReceiveBeacon(Ptr<const WifiMpdu> mpdu, uint8_t linkId)
     SnrTag snrTag;
     bool found = mpdu->GetPacket()->PeekPacketTag(snrTag);
     NS_ASSERT(found);
+    RssiTag rssiTag;
+    found = mpdu->GetPacket()->PeekPacketTag(rssiTag);
+    NS_ASSERT(found);
     ApInfo apInfo = {.m_bssid = hdr.GetAddr3(),
                      .m_apAddr = hdr.GetAddr2(),
                      .m_snr = snrTag.Get(),
+                     .m_rssi = rssiTag.Get(),
                      .m_frame = std::move(beacon),
                      .m_channel = {GetCurrentChannel(linkId)},
                      .m_linkId = linkId};
@@ -1487,9 +1492,13 @@ StaWifiMac::ReceiveProbeResp(Ptr<const WifiMpdu> mpdu, uint8_t linkId)
     SnrTag snrTag;
     bool found = mpdu->GetPacket()->PeekPacketTag(snrTag);
     NS_ASSERT(found);
+    RssiTag rssiTag;
+    found = mpdu->GetPacket()->PeekPacketTag(rssiTag);
+    NS_ASSERT(found);
     m_assocManager->NotifyApInfo(ApInfo{.m_bssid = hdr.GetAddr3(),
                                         .m_apAddr = hdr.GetAddr2(),
                                         .m_snr = snrTag.Get(),
+                                        .m_rssi = rssiTag.Get(),
                                         .m_frame = std::move(probeResp),
                                         .m_channel = {GetCurrentChannel(linkId)},
                                         .m_linkId = linkId});

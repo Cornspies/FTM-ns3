@@ -57,6 +57,19 @@ FtmAssocManager::GetTypeId()
                                           "RssiFiltered",
                                           FtmAssocManager::COMBINED,
                                           "Combined"))
+            .AddAttribute("SignalMetric",
+                          "The measure of the signal strength of a candidate AP, used to order "
+                          "the APs that are not ranged and by the RssiMargin and "
+                          "SkipRangingMargin rules: Rssi is the received power of the last "
+                          "Beacon or Probe Response frame of the AP; Snr is the SNR of that "
+                          "frame, which the WifiDefaultAssocManager uses and which is lower if "
+                          "the frame overlapped with another transmission.",
+                          EnumValue(FtmAssocManager::RSSI),
+                          MakeEnumAccessor<SignalMetric>(&FtmAssocManager::m_signalMetric),
+                          MakeEnumChecker(FtmAssocManager::RSSI,
+                                          "Rssi",
+                                          FtmAssocManager::SNR,
+                                          "Snr"))
             .AddAttribute("MaxRangedAps",
                           "RssiFiltered strategy: range with at most this number of the "
                           "strongest candidate APs (0 means no limit).",
@@ -64,8 +77,8 @@ FtmAssocManager::GetTypeId()
                           MakeUintegerAccessor(&FtmAssocManager::m_maxRangedAps),
                           MakeUintegerChecker<uint32_t>())
             .AddAttribute("RssiMargin",
-                          "RssiFiltered strategy: range only with candidate APs whose SNR is at "
-                          "most this amount (dB) below the SNR of the strongest candidate.",
+                          "RssiFiltered strategy: range only with candidate APs whose signal "
+                          "is at most this amount (dB) below that of the strongest candidate.",
                           DoubleValue(10),
                           MakeDoubleAccessor(&FtmAssocManager::m_rssiMargin),
                           MakeDoubleChecker<double>(0))
@@ -76,8 +89,9 @@ FtmAssocManager::GetTypeId()
                           MakeDoubleAccessor(&FtmAssocManager::m_minSnr),
                           MakeDoubleChecker<double>())
             .AddAttribute("SkipRangingMargin",
-                          "Skip ranging if the strongest candidate AP exceeds the SNR of the "
-                          "second strongest by at least this amount (dB). 0 disables this rule.",
+                          "Skip ranging if the signal of the strongest candidate AP exceeds "
+                          "that of the second strongest by at least this amount (dB). 0 "
+                          "disables this rule.",
                           DoubleValue(0),
                           MakeDoubleAccessor(&FtmAssocManager::m_skipRangingMargin),
                           MakeDoubleChecker<double>(0))
@@ -127,10 +141,11 @@ FtmAssocManager::GetTypeId()
                           MakeDoubleChecker<double>(0))
             .AddAttribute("MaxRangingSpeed",
                           "Skip ranging if the STA moves faster than this speed (m/s) at the end "
-                          "of scanning; the APs are then ordered by SNR. The speed is taken from "
-                          "the mobility model of the STA's node, i.e., it is exact, whereas real "
-                          "devices detect motion with their inertial sensors. By default (the "
-                          "largest double), ranging is never skipped because of motion.",
+                          "of scanning; the APs are then ordered by signal strength. The speed "
+                          "is taken from the mobility model of the STA's node, i.e., it is "
+                          "exact, whereas real devices detect motion with their inertial "
+                          "sensors. By default (the largest double), ranging is never skipped "
+                          "because of motion.",
                           DoubleValue(std::numeric_limits<double>::max()),
                           MakeDoubleAccessor(&FtmAssocManager::m_maxRangingSpeed),
                           MakeDoubleChecker<double>(0))
@@ -200,6 +215,12 @@ FtmAssocManager::IsEligible(const StaWifiMac::ApInfo& apInfo) const
     return m_strategy != COMBINED || RatioToDb(apInfo.m_snr) >= m_minSnr;
 }
 
+double
+FtmAssocManager::GetSignal(const StaWifiMac::ApInfo& apInfo) const
+{
+    return m_signalMetric == RSSI ? apInfo.m_rssi : RatioToDb(apInfo.m_snr);
+}
+
 bool
 FtmAssocManager::Compare(const StaWifiMac::ApInfo& lhs, const StaWifiMac::ApInfo& rhs) const
 {
@@ -228,12 +249,12 @@ FtmAssocManager::Compare(const StaWifiMac::ApInfo& lhs, const StaWifiMac::ApInfo
     {
         return *lhsDistance < *rhsDistance;
     }
-    if (lhs.m_snr != rhs.m_snr)
+    if (const auto lhsSignal = GetSignal(lhs), rhsSignal = GetSignal(rhs); lhsSignal != rhsSignal)
     {
-        return lhs.m_snr > rhs.m_snr;
+        return lhsSignal > rhsSignal;
     }
-    // APs with the same distance and SNR must not compare equal, otherwise the sorted list
-    // considers them duplicates
+    // APs with the same distance and signal strength must not compare equal, otherwise the
+    // sorted list considers them duplicates
     return lhs.m_bssid < rhs.m_bssid;
 }
 
@@ -267,14 +288,15 @@ FtmAssocManager::SelectApsToRange() const
             candidates.push_back(&apInfo);
         }
     }
-    std::stable_sort(candidates.begin(), candidates.end(), [](auto lhs, auto rhs) {
-        return lhs->m_snr > rhs->m_snr;
+    std::stable_sort(candidates.begin(), candidates.end(), [this](auto lhs, auto rhs) {
+        return GetSignal(*lhs) > GetSignal(*rhs);
     });
 
     if (m_strategy == RSSI_FILTERED && !candidates.empty())
     {
-        const auto minSnr = RatioToDb(candidates.front()->m_snr) - m_rssiMargin;
-        std::erase_if(candidates, [minSnr](auto ap) { return RatioToDb(ap->m_snr) < minSnr; });
+        const auto minSignal = GetSignal(*candidates.front()) - m_rssiMargin;
+        std::erase_if(candidates,
+                      [this, minSignal](auto ap) { return GetSignal(*ap) < minSignal; });
         if (m_maxRangedAps > 0 && candidates.size() > m_maxRangedAps)
         {
             candidates.resize(m_maxRangedAps);
@@ -287,7 +309,7 @@ FtmAssocManager::SelectApsToRange() const
         return {};
     }
     if (m_skipRangingMargin > 0 &&
-        RatioToDb(candidates[0]->m_snr) - RatioToDb(candidates[1]->m_snr) >= m_skipRangingMargin)
+        GetSignal(*candidates[0]) - GetSignal(*candidates[1]) >= m_skipRangingMargin)
     {
         NS_LOG_DEBUG("Strongest AP " << candidates[0]->m_bssid << " exceeds the second strongest "
                                      << "by at least " << m_skipRangingMargin
@@ -298,7 +320,7 @@ FtmAssocManager::SelectApsToRange() const
     std::list<RangingResult> toRange;
     for (const auto ap : candidates)
     {
-        toRange.push_back({.bssid = ap->m_bssid, .snr = ap->m_snr});
+        toRange.push_back({.bssid = ap->m_bssid, .snr = ap->m_snr, .scanRssi = ap->m_rssi});
     }
     return toRange;
 }
@@ -322,8 +344,8 @@ FtmAssocManager::EndScanning()
     m_decision.scanningEnd = Simulator::Now();
     if (auto strongest = std::max_element(GetSortedList().cbegin(),
                                           GetSortedList().cend(),
-                                          [](auto&& lhs, auto&& rhs) {
-                                              return lhs.m_snr < rhs.m_snr;
+                                          [this](auto&& lhs, auto&& rhs) {
+                                              return GetSignal(lhs) < GetSignal(rhs);
                                           });
         strongest != GetSortedList().cend())
     {
@@ -473,6 +495,7 @@ FtmAssocManager::EndRanging()
         const auto& first = *list.cbegin();
         m_decision.bssid = first.m_bssid;
         m_decision.snr = first.m_snr;
+        m_decision.rssi = first.m_rssi;
         if (auto it = m_distances.find(first.m_bssid); it != m_distances.end())
         {
             m_decision.distance = it->second;
@@ -488,6 +511,7 @@ std::ostream&
 operator<<(std::ostream& os, const FtmAssocManager::RangingResult& result)
 {
     os << "bssid=" << result.bssid << " snr=" << RatioToDb(result.snr) << "dB"
+       << " scanRssi=" << result.scanRssi << "dBm"
        << " rtts=" << result.nValidRtts << "/" << result.nRtts << " distance=";
     if (result.distance)
     {
@@ -513,7 +537,8 @@ operator<<(std::ostream& os, const FtmAssocManager::Decision& decision)
        << " ranged=" << decision.nRanged << " chosen=";
     if (decision.bssid)
     {
-        os << *decision.bssid << " snr=" << RatioToDb(decision.snr) << "dB distance=";
+        os << *decision.bssid << " snr=" << RatioToDb(decision.snr) << "dB rssi=" << decision.rssi
+           << "dBm distance=";
         if (decision.distance)
         {
             os << *decision.distance << "m";

@@ -11,6 +11,7 @@
 #include "adhoc-wifi-mac.h"
 #include "ap-wifi-mac.h"
 #include "gcr-manager.h"
+#include "rssi-tag.h"
 #include "snr-tag.h"
 #include "sta-wifi-mac.h"
 #include "wifi-mac-queue.h"
@@ -1670,11 +1671,14 @@ FrameExchangeManager::ReceiveMpdu(Ptr<const WifiMpdu> mpdu,
 
         if (hdr.IsBeacon() || hdr.IsProbeResp())
         {
-            // Apply SNR tag for beacon quality measurements
+            // Apply SNR and RSSI tags for beacon quality measurements
             SnrTag tag;
             tag.Set(rxSnr);
+            RssiTag rssiTag;
+            rssiTag.Set(rxSignalInfo.rssi);
             Ptr<Packet> packet = mpdu->GetPacket()->Copy();
             packet->AddPacketTag(tag);
+            packet->AddPacketTag(rssiTag);
             mpdu = Create<WifiMpdu>(packet, hdr);
         }
 

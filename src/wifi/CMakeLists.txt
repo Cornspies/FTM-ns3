@@ -145,6 +145,7 @@ set(source_files
     model/reference/error-rate-tables.cc
     model/rr-wifi-queue-scheduler.cc
     model/simple-frame-capture-model.cc
+    model/rssi-tag.cc
     model/snr-tag.cc
     model/spectrum-wifi-phy.cc
     model/ssid.cc
@@ -329,6 +330,7 @@ set(header_files
     model/reference/error-rate-tables.h
     model/rr-wifi-queue-scheduler.h
     model/simple-frame-capture-model.h
+    model/rssi-tag.h
     model/snr-tag.h
     model/spectrum-wifi-phy.h
     model/ssid.h

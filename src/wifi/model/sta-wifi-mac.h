@@ -12,6 +12,7 @@
 #define STA_WIFI_MAC_H
 
 #include "wifi-mac.h"
+#include "wifi-units.h"
 
 #include "ns3/eht-configuration.h"
 #include "ns3/wifi-export.h"
@@ -171,6 +172,7 @@ class WIFI_EXPORT StaWifiMac : public WifiMac
         Mac48Address m_bssid;         ///< BSSID
         Mac48Address m_apAddr;        ///< AP MAC address
         double m_snr;                 ///< SNR in linear scale
+        dBm_u m_rssi;                 ///< received power of the management frame
         MgtResponseFrameType m_frame; ///< The body of the management frame used to update AP info
         WifiScanParams::Channel m_channel; ///< The channel the management frame was received on
         uint8_t m_linkId;                  ///< ID of the link used to communicate with the AP

@@ -34,8 +34,7 @@ class FtmSession;
  * by the measured distance and the STA attempts to associate with the first one.
  *
  * The available strategies are:
- * - StrongestRssi: no ranging, the AP with the highest SNR is chosen (baseline; equivalent
- *   to the WifiDefaultAssocManager);
+ * - StrongestRssi: no ranging, the AP with the strongest signal is chosen (baseline);
  * - ClosestAp: all candidate APs are ranged and the closest one is chosen;
  * - RssiFiltered: only the strongest candidates (at most MaxRangedAps, within RssiMargin of
  *   the strongest one) are ranged and the closest of them is chosen;
@@ -45,7 +44,15 @@ class FtmSession;
  * Ranging is skipped if fewer than two candidates are left, if SkipRangingMargin is
  * positive and the strongest candidate exceeds the second strongest by at least that margin,
  * or if the STA moves faster than MaxRangingSpeed.
- * APs that could not be ranged are ordered after the ranged ones, by decreasing SNR.
+ * APs that could not be ranged are ordered after the ranged ones, by decreasing signal
+ * strength.
+ *
+ * The signal strength of an AP is, depending on SignalMetric, the received power (RSSI) of
+ * its last Beacon or Probe Response frame, or the SNR of that frame. The
+ * WifiDefaultAssocManager uses the SNR, which includes the interference during the reception
+ * of that frame: a frame that overlaps with another one makes its AP appear weak. With
+ * SignalMetric set to Snr, the StrongestRssi strategy is equivalent to the
+ * WifiDefaultAssocManager.
  *
  * FTM must be enabled on the STA (WifiMac::FTM_Enabled) and on the APs.
  */
@@ -61,11 +68,19 @@ class FtmAssocManager : public WifiDefaultAssocManager
         COMBINED
     };
 
+    /// Measures of the signal strength of a candidate AP
+    enum SignalMetric : uint8_t
+    {
+        RSSI = 0, ///< received power of the last Beacon or Probe Response frame
+        SNR       ///< SNR of that frame, including interference
+    };
+
     /// Result of ranging with a candidate AP
     struct RangingResult
     {
         Mac48Address bssid;             ///< BSSID of the AP
         double snr{0};                  ///< SNR (linear scale) of the AP at the end of scanning
+        double scanRssi{0};             ///< RSSI (dBm) of the AP at the end of scanning
         std::size_t nRtts{0};           ///< number of FTM dialogs reported by the session
         std::size_t nValidRtts{0};      ///< number of dialogs with all time stamps (RTT != 0)
         std::optional<double> distance; ///< distance estimate in meters, if any valid RTT
@@ -84,8 +99,9 @@ class FtmAssocManager : public WifiDefaultAssocManager
         std::size_t nRanged{0};             ///< number of APs ranging was attempted with
         std::optional<Mac48Address> bssid;  ///< BSSID of the first AP in the sorted list, if any
         double snr{0};                      ///< SNR (linear scale) of that AP
+        double rssi{0};                     ///< RSSI (dBm) of that AP
         std::optional<double> distance;     ///< distance estimate of that AP, if ranged
-        std::optional<Mac48Address> strongestBssid; ///< BSSID of the AP with the highest SNR
+        std::optional<Mac48Address> strongestBssid; ///< BSSID of the AP with the strongest signal
         Time scanningEnd;                   ///< time scanning ended
         Time rangingDuration;               ///< time spent ranging with the candidate APs
         double staSpeed{0};                 ///< speed of the STA (m/s) at the end of scanning
@@ -141,6 +157,13 @@ class FtmAssocManager : public WifiDefaultAssocManager
     bool IsEligible(const StaWifiMac::ApInfo& apInfo) const;
 
     /**
+     * @param apInfo the information about an AP
+     * @return the signal strength of the AP according to SignalMetric: its RSSI (dBm) or its
+     *         SNR (dB)
+     */
+    double GetSignal(const StaWifiMac::ApInfo& apInfo) const;
+
+    /**
      * @return the speed (m/s) of the STA according to the mobility model of its node, or 0 if
      *         the node has no mobility model
      */
@@ -184,10 +207,11 @@ class FtmAssocManager : public WifiDefaultAssocManager
     void EndRanging();
 
     Strategy m_strategy;               ///< strategy to choose the AP
+    SignalMetric m_signalMetric;       ///< measure of the signal strength of an AP
     uint32_t m_maxRangedAps;           ///< RssiFiltered: maximum number of APs to range with
-    double m_rssiMargin;               ///< RssiFiltered: max SNR difference to the strongest (dB)
+    double m_rssiMargin;               ///< RssiFiltered: max difference to the strongest (dB)
     double m_minSnr;                   ///< Combined: minimum SNR of a candidate (dB)
-    double m_skipRangingMargin;        ///< SNR advantage of the strongest AP to skip ranging (dB)
+    double m_skipRangingMargin;        ///< advantage of the strongest AP to skip ranging (dB)
     Ptr<FtmParamsHolder> m_ftmParams;  ///< FTM parameters of the sessions
     ObjectFactory m_errorModelFactory; ///< factory for the FTM error model of each session
     Time m_rangingTimeout;             ///< maximum duration of the FTM session with one AP
