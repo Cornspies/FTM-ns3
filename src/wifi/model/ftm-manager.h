@@ -28,6 +28,7 @@
 #include "ns3/wifi-mac-header.h"
 #include "ns3/ftm-header.h"
 #include "ns3/mgt-action-headers.h"
+#include "ns3/wifi-export.h"
 
 #include <list>
 #include <map>
@@ -46,7 +47,7 @@ namespace ns3 {
  * and if it is a FTM packet it sets the appropriate time stamps.
  * It forwards the packets to the right sessions and manages them. This means creating and deleting them.
  */
-class FtmManager : public Object
+class WIFI_EXPORT FtmManager : public Object
 {
 public:
   /**

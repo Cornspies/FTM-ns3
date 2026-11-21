@@ -26,6 +26,7 @@
 #include <random>
 #include <string>
 #include <ns3/node.h>
+#include <ns3/wifi-export.h>
 
 namespace ns3 {
 
@@ -36,7 +37,7 @@ namespace ns3 {
  * This Class defines the Base for the FTM Error models. It is used as the default for all
  * FtmSession objects without any error.
  */
-class FtmErrorModel : public Object
+class WIFI_EXPORT FtmErrorModel : public Object
 {
 public:
   /**
@@ -64,7 +65,7 @@ public:
  * Default values are based on measured data with a coax cable. Implemented Bandwidths are 20
  * and 40 MHz.
  */
-class WiredFtmErrorModel : public FtmErrorModel
+class WIFI_EXPORT WiredFtmErrorModel : public FtmErrorModel
 {
 public:
   /**
@@ -168,7 +169,7 @@ protected:
  * In addition to the WiredErrorModel, a map is used to determine
  * bias. The node is used to determine the bias at its current position.
  */
-class WirelessFtmErrorModel : public WiredFtmErrorModel
+class WIFI_EXPORT WirelessFtmErrorModel : public WiredFtmErrorModel
 {
 public:
   class FtmMap;
@@ -232,7 +233,7 @@ private:
  * The map generator script can be found in the folder src/wifi/ftm_map/ and is called
  * ftm_map_generator.py. It can be used to create maps with custom size and bias.
  */
-class WirelessFtmErrorModel::FtmMap : public Object
+class WIFI_EXPORT WirelessFtmErrorModel::FtmMap : public Object
 {
 public:
   /**
@@ -280,7 +281,7 @@ private:
  * This class models a wireless indoor channel where the signal strength and multi path influence the accuracy.
  * It extends the WirelessFtmErrorModel.
  */
-class WirelessSigStrFtmErrorModel : public WirelessFtmErrorModel
+class WIFI_EXPORT WirelessSigStrFtmErrorModel : public WirelessFtmErrorModel
 {
 public:
   /**

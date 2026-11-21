@@ -11,6 +11,7 @@
 #include "ns3/nstime.h"
 #include "ns3/object-factory.h"
 #include "ns3/traced-callback.h"
+#include "ns3/wifi-export.h"
 
 #include <list>
 #include <map>
@@ -56,7 +57,7 @@ class FtmSession;
  *
  * FTM must be enabled on the STA (WifiMac::FTM_Enabled) and on the APs.
  */
-class FtmAssocManager : public WifiDefaultAssocManager
+class WIFI_EXPORT FtmAssocManager : public WifiDefaultAssocManager
 {
   public:
     /// Strategies to choose the AP to associate with
@@ -236,14 +237,14 @@ class FtmAssocManager : public WifiDefaultAssocManager
  * @param result the ranging result
  * @return the output stream
  */
-std::ostream& operator<<(std::ostream& os, const FtmAssocManager::RangingResult& result);
+WIFI_EXPORT std::ostream& operator<<(std::ostream& os, const FtmAssocManager::RangingResult& result);
 
 /**
  * @param os the output stream
  * @param decision the AP selection
  * @return the output stream
  */
-std::ostream& operator<<(std::ostream& os, const FtmAssocManager::Decision& decision);
+WIFI_EXPORT std::ostream& operator<<(std::ostream& os, const FtmAssocManager::Decision& decision);
 
 } // namespace ns3
 
