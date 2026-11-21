@@ -28,6 +28,7 @@
 #include "ns3/ftm-header.h"
 #include "ns3/nstime.h"
 #include "ns3/ftm-error-model.h"
+#include "ns3/wifi-export.h"
 
 #include <list>
 #include <map>
@@ -43,7 +44,7 @@ namespace ns3 {
  * that are exchanged with that partner. Once the session with a partner finishes and a session over callback is
  * specified on the initiator side, it returns itself to the user. This way the RTT can be accessed.
  */
-class FtmSession : public Object
+class WIFI_EXPORT FtmSession : public Object
 {
 public:
   /**

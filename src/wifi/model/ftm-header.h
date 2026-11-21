@@ -23,6 +23,7 @@
 
 #include "ns3/header.h"
 #include "ns3/object.h"
+#include "ns3/wifi-export.h"
 
 namespace ns3 {
 
@@ -32,7 +33,7 @@ namespace ns3 {
  *
  * This Class implements the FTM parameter header.
  */
-class FtmParams : public Header
+class WIFI_EXPORT FtmParams : public Header
 {
 public:
   FtmParams ();
@@ -270,7 +271,7 @@ private:
  * This class only purpose is to be used in the attribute system to set the default FTM parameters
  * for the FtmSession class. This was created because creating an attribute value from a header did not work.
  */
-class FtmParamsHolder : public Object
+class WIFI_EXPORT FtmParamsHolder : public Object
 {
 public:
   /**
@@ -306,7 +307,7 @@ private:
  *
  * Implementation of the FTM request header.
  */
-class FtmRequestHeader : public Header
+class WIFI_EXPORT FtmRequestHeader : public Header
 {
 public:
   FtmRequestHeader ();
@@ -371,7 +372,7 @@ private:
  *
  * Implementation of the FTM response header.
  */
-class FtmResponseHeader : public Header
+class WIFI_EXPORT FtmResponseHeader : public Header
 {
 public:
   FtmResponseHeader ();
@@ -513,7 +514,7 @@ private:
  *
  * Implementation of the TSF sync info header.
  */
-class TsfSyncInfo : public Header
+class WIFI_EXPORT TsfSyncInfo : public Header
 {
 public:
   TsfSyncInfo ();
